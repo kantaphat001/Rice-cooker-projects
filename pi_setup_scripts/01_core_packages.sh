@@ -26,6 +26,7 @@ apt-get install -y --no-install-recommends \
     xserver-xorg-input-all \
     xserver-xorg-input-libinput \
     libinput-tools \
+    xinit \
     lightdm
 
 echo "[*] Installing XRDP and Xorg-XRDP Remote Desktop Server..."
