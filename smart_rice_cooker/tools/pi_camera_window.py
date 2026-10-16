@@ -79,6 +79,33 @@ fps_time = time.time()
 fps = 0
 frame_count = 0
 
+last_sys_check = 0.0
+cached_temp = 0.0
+cached_used_mb = 0
+cached_total_mb = 904
+
+def get_system_stats():
+    global last_sys_check, cached_temp, cached_used_mb, cached_total_mb
+    if time.time() - last_sys_check >= 1.0:
+        last_sys_check = time.time()
+        try:
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                cached_temp = int(f.read().strip()) / 1000.0
+        except Exception:
+            pass
+        try:
+            with open("/proc/meminfo", "r") as f:
+                lines = f.readlines()
+            mem = {}
+            for l in lines[:5]:
+                p = l.split(":")
+                mem[p[0].strip()] = int(p[1].strip().split()[0]) // 1024
+            cached_total_mb = mem.get("MemTotal", 904)
+            cached_used_mb = cached_total_mb - mem.get("MemAvailable", 500)
+        except Exception:
+            pass
+    return cached_temp, cached_used_mb, cached_total_mb
+
 try:
     while True:
         ret, frame = cap.read()
@@ -112,10 +139,11 @@ try:
                         ly = int(face[5 + i * 2])
                         cv2.circle(frame, (lx, ly), 3, (255, 100, 0), -1)
 
-        # Status overlay
-        cv2.rectangle(frame, (0, 0), (640, 32), (30, 30, 30), -1)
-        cv2.putText(frame, f"Pi Camera Live | {fps:.1f} FPS | Faces: {num_faces} | Press 'q' to exit",
-                    (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+        # Status overlay with Temp & RAM
+        temp_c, used_mb, total_mb = get_system_stats()
+        cv2.rectangle(frame, (0, 0), (640, 32), (25, 25, 25), -1)
+        hud = f"FPS: {fps:.0f} | Face: {num_faces} | Temp: {temp_c:.1f}'C | RAM: {used_mb}/{total_mb}MB (q: exit)"
+        cv2.putText(frame, hud, (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1)
 
         cv2.imshow(window_name, frame)
         key = cv2.waitKey(1) & 0xFF
