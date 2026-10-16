@@ -49,12 +49,13 @@ def main():
     print("  [2] ทดสอบปุ่มกด Acknowledge Button (GPIO 25)")
     print("  [3] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะทางสด)")
     print("  [4] ทดสอบเสียงพูดภาษาไทยผ่านลำโพง (mpg123)")
-    print("  [5] ทดสอบจับภาพจากกล้อง USB (/dev/video0)")
+    print("  [5] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
+    print("  [6] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
     print("  [0] ออกจากโปรแกรม")
     print("=" * 70)
 
     try:
-        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 0): ").strip()
+        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 6, 0): ").strip()
     except EOFError:
         choice = "0"
 
@@ -154,7 +155,7 @@ print('[+] ทดสอบเสียงเสร็จสมบูรณ์!')
         run_remote_python(ssh, code)
 
     elif choice == "5":
-        print("\n[*] กำลังทดสอบจับภาพจากกล้อง USB (/dev/video0)...")
+        print("\n[*] กำลังถ่ายภาพจากกล้อง USB บน Pi และดึงภาพมาแสดงบนหน้าจอ Windows...")
         code = """
 import cv2
 cap = cv2.VideoCapture(0)
@@ -163,12 +164,32 @@ if not cap.isOpened():
 else:
     ret, frame = cap.read()
     if ret and frame is not None:
-        print(f'[+] กล้องทำงานสมบูรณ์! ขนาดเฟรม: {frame.shape[1]}x{frame.shape[0]}')
+        cv2.imwrite('/tmp/hardware_test_snapshot.jpg', frame)
+        print(f'[+] กล้องทำงานสมบูรณ์! บันทึกภาพขนาด {frame.shape[1]}x{frame.shape[0]} เรียบร้อย')
     else:
         print('[-] อ่านภาพจากกล้องไม่สำเร็จ')
     cap.release()
 """
         run_remote_python(ssh, code)
+        
+        # Download snapshot to Windows and open it
+        try:
+            sftp = ssh.open_sftp()
+            local_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "camera_test.jpg")
+            sftp.get('/tmp/hardware_test_snapshot.jpg', local_img)
+            sftp.close()
+            print(f"[+] บันทึกภาพลงคอมพิวเตอร์สำเร็จ: {local_img}")
+            print("[*] กำลังเปิดหน้าต่างรูปภาพบน Windows...")
+            os.startfile(local_img)
+        except Exception as e:
+            print(f"[!] ไม่สามารถดึงภาพมาเปิดได้: {e}")
+
+    elif choice == "6":
+        ssh.close()
+        import subprocess
+        runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view_live_camera.py")
+        subprocess.run([sys.executable, runner])
+        return
 
     ssh.close()
     print("\n[+] สิ้นสุดการทดสอบ")
