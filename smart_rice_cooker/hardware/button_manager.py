@@ -16,14 +16,14 @@ except (ImportError, Exception):
     logger.warning("[Button] gpiozero Button not available. Running in MOCK mode.")
 
 class ButtonManager:
-    def __init__(self, pin: int = 25, on_pressed=None, bounce_time: float = 0.2):
+    def __init__(self, pin: int = None, on_pressed=None, bounce_time: float = 0.2):
         self.pin = pin
         self.on_pressed = on_pressed
         self.bounce_time = bounce_time
         self._button = None
-        self._is_mock = not GPIOZERO_BUTTON_AVAILABLE
+        self._is_mock = not GPIOZERO_BUTTON_AVAILABLE or pin is None
 
-        if not self._is_mock:
+        if not self._is_mock and pin is not None:
             try:
                 # pull_up=True means button connects GPIO pin to GND
                 self._button = Button(self.pin, pull_up=True, bounce_time=self.bounce_time)
@@ -32,6 +32,8 @@ class ButtonManager:
             except Exception as e:
                 logger.warning(f"[Button] Failed to initialize hardware button: {e}. Falling back to mock.")
                 self._is_mock = True
+        elif pin is None:
+            logger.info("[Button] Running in Zero-Touch / Hands-Free mode (No physical button).")
 
     def _handle_press(self):
         logger.info("[Button] 🔘 Physical Acknowledge Button Pressed!")

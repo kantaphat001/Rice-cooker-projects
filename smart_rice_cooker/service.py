@@ -38,11 +38,13 @@ class CompanionService:
 
         # 1. Hardware Drivers
         self.leds = LEDController(settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
-        self.button = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=self._handle_button_press)
+        self.button = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=self._handle_button_press) if settings.PIN_BUTTON_ACK else None
         self.camera = CameraManager(settings.CAMERA_INDEX, settings.CAMERA_STANDBY_FPS, settings.CAMERA_ACTIVE_FPS)
         self.ultrasonic = UltrasonicSensor(
-            settings.PIN_ULTRASONIC_TRIG,
-            settings.PIN_ULTRASONIC_ECHO,
+            trig_pin=settings.PIN_ULTRASONIC_TRIG,
+            echo_pin=settings.PIN_ULTRASONIC_ECHO,
+            out_pin=settings.PIN_ULTRASONIC_OUT,
+            model=settings.ULTRASONIC_MODEL,
             threshold_cm=settings.DISTANCE_TRIGGER_CM,
             hold_time_sec=settings.ULTRASONIC_HOLD_TIME_SEC,
             on_person_detected=self._handle_person_detected
@@ -202,6 +204,8 @@ class CompanionService:
                 self.gui.update_medication_display(display_name, slot_label, all_meds)
             self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
             self.tracker.record_reminder(member_id, slot_key)
+            if getattr(settings, "AUTO_ACKNOWLEDGE_ON_REMIND", True):
+                self.tracker.record_acknowledgement(member_id, slot_key)
             self._speak_and_finish(msg, has_meds=True)
 
     def _handle_unknown_visitor(self):
@@ -248,5 +252,6 @@ class CompanionService:
         logger.info("[Service] Shutting down service...")
         self.ultrasonic.stop_monitoring()
         self.camera.stop()
-        self.button.close()
+        if self.button:
+            self.button.close()
         self.leds.close()

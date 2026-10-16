@@ -1,63 +1,79 @@
-# Rice Cooker Projects: Raspberry Pi 4 Universal Automated Provisioning Suite
-
-ชุดเครื่องมืออัตโนมัติสำหรับการติดตั้ง กำหนดค่า ปรับจูนประสิทธิภาพระดับเคอร์เนล และควบคุมบอร์ด **Raspberry Pi 4 Model B (Rev 1.5)** ผ่าน Windows แบบ 1-Click
-
----
-
-## 📌 สเปกและข้อมูลเครื่องเป้าหมายหลัก (Target Profile)
-* **IP Address:** `192.168.88.74`
-* **MAC Address:** `d8:3a:dd:d4:44:08`
-* **Model:** Raspberry Pi 4 Model B Rev 1.5
-* **RAM:** 1 GB (~904 MB detected)
-* **Default Desktop:** XFCE 4.20 Desktop (หรือสลับเป็น PIXEL / LXDE ได้)
-* **Default Credentials:**
-  * **User:** `pi`
-  * **Password:** `1234`
-  * **Sudo:** Passwordless
+# Smart Rice Cooker Medication Companion Box (2026 Edition)
+> **กล่องอุปกรณ์เสริมข้างหม้อหุงข้าวอัจฉริยะเตือนรับประทานยาประจำบ้าน (Hands-Free / Zero-Touch)**
+> ออกแบบมาเพื่อผู้สูงอายุโดยเฉพาะ: เดินมาหน้าหม้อหุงข้าว $\rightarrow$ สแกนใบหน้า $\rightarrow$ ขานชื่อและเตือนมื้อยาอัตโนมัติ
 
 ---
 
-## ⚡ สถาปัตยกรรมและเทคโนโลยีระดับเคอร์เนล (Kernel Optimizations)
+## 🌟 จุดเด่นของระบบ (Key Features)
 
-1. **In-Memory ZRAM (LZ4 Compression):**
-   * ปิดการใช้งาน Swapfile บน MicroSD Card ถาวร (`dphys-swapfile` disabled) เพื่อถนอมอายุการใช้งาน Flash Memory
-   * จัดสรรพื้นที่ ZRAM 100% ของขนาด RAM พร้อมอัลกอริทึม LZ4
-   * ปรับตั้งค่า `vm.swappiness=100` และ `vm.page-cluster=0` เพื่อลดอาการแล็กจากการสลับหน้าหน่วยความจำ
-2. **Dynamic CMA GPU Allocation:**
-   * ใช้งานไดรเวอร์เคอร์เนล KMS `vc4-kms-v3d` และยกเลิกการล็อกแรมแบบตายตัว `gpu_mem` เพื่อให้ RAM ทั้งหมดถูกนำมาใช้งานอย่างเต็มประสิทธิภาพ
-3. **XRDP & Display Configuration:**
-   * บังคับใช้งาน X11 Display Server ป้องกันปัญหาจอดำ และลดข้อขัดแย้งของ DBus เมื่อใช้งานรีโมทพร้อมจอจริง
-4. **Modern Python Stack:**
-   * ติดตั้งเครื่องมือจัดการแพ็กเกจความเร็วสูง **Astral `uv`**
-   * ตั้งค่า `break-system-packages = true` เพื่อรองรับการติดตั้งไลบรารีสากล
+* **100% Hands-Free (ไร้สัมผัส ไม่ต้องกดปุ่มใดๆ):** ผู้สูงอายุไม่ต้องกดปุ่มเปิดเครื่องหรือกดยืนยัน ระบบใช้ Ultrasonic ตรวจจับคนเดินเข้ามาใกล้ และปลุกกล้อง AI สแกนใบหน้าขานชื่ออัตโนมัติ พร้อมบันทึกสถานะการทานยาและเข้าสู่ช่วง Cooldown ทันที
+* **Edge AI Face Recognition:** โมเดล **YuNet ONNX** (~230KB) ตรวจจับใบหน้า และ **SFace ONNX** (~37MB) สกัดเวกเตอร์เปรียบเทียบใบหน้าสมาชิกในครอบครัว ประมวลผลบนบอร์ด Raspberry Pi 4 ได้อย่างลื่นไหล
+* **เสียงพูดภาษาไทยสุภาพ ชัดเจน:** สังเคราะห์เสียงพูดภาษาไทยธรรมชาติ (`th-TH-PremwadeeNeural`) เล่นไฟล์ผ่าน `mpg123` ขจัดเสียงซ่าแสบแก้วหู พร้อมระบบ Cache ข้อความออฟไลน์ 100%
+* **24/7 Autonomous Appliance:** ติดตั้งเป็น **Systemd Background Service (`smart-cooker.service`)** ทำงานทันทีเมื่อเสียบปลั๊กไฟ (Boot on Power) พร้อมจำกัด RAM ไม่เกิน **350MB** เพื่อความเสถียรสูงสุดบน Raspberry Pi 4 (RAM 1GB)
+* **Auto-Recovery Hardware:** ไดรเวอร์กล้อง V4L2 Zero-Lag Buffer พร้อมระบบ Watchdog กู้คืนการเชื่อมต่อกล้องให้อัตโนมัติหากสายหลุด
 
 ---
 
-## 🚀 เครื่องมือควบคุมบน Windows (Control Suite)
+## 📌 ข้อมูลฮาร์ดแวร์และการเชื่อมต่อ (Hardware Specifications)
 
-| ไฟล์ | ฟังก์ชันการทำงาน |
-| :--- | :--- |
-| **`Control-Center.bat`** | เปิดศูนย์ควบคุมหลัก 18 เมนู (เรียก PowerShell `Control-Center.ps1`) |
-| **`0-Setup-Pi4-Automated.bat`** | ติดตั้งและกำหนดค่าระบบลงบอร์ด `192.168.88.74` อัตโนมัติในคลิกเดียว |
-| **`1-Remote-Desktop.bat`** | เปิด Remote Desktop (mstsc.exe) ความละเอียด 1024x600 |
-| **`2-SSH-Terminal.bat`** | เปิดหน้าต่าง SSH Console ควบคุมบอร์ดทันที |
-| **`3-Switch-OS-Theme.bat`** | สลับหน้าจอระหว่าง **[1] XFCE** (สไตล์ Windows) กับ **[2] PIXEL** (สไตล์ดั้งเดิมของ Pi) |
-| **`4-Apply-Optimizations.bat`** | สั่งปรับจูน ZRAM และเคอร์เนลซ้ำได้ตลอดเวลา |
-| **`5-Check-System-Health.bat`** | ตรวจสอบอุณหภูมิ CPU, RAM/Swap, พื้นที่ว่าง และสถานะไฟตก (Throttling) |
-| **`6-Backup-Pi-Config.bat`** | สำรองไฟล์การตั้งค่าระบบสำคัญเก็บไว้ในโฟลเดอร์ `backups/` บนคอมพิวเตอร์ |
+* **บอร์ดประมวลผล:** Raspberry Pi 4 Model B (IP: `192.168.88.74`, User: `pi`, Pass: `1234`)
+* **เซนเซอร์ตรวจจับระยะ:** Ultrasonic HC-SR04 (และรองรับ US-016)
+* **กล้องสแกนใบหน้า:** USB Camera (`/dev/video0`)
+* **ลำโพง:** ลำโพง 3.5mm AUX หรือลำโพง USB
+* **ไฟสถานะ 3 สี:**
+  * 🔴 **สีแดง:** โหมด Standby (พร้อมตรวจจับ)
+  * 🟡 **สีเหลือง:** โหมด Detecting (กำลังสแกนใบหน้า)
+  * 🟢 **สีเขียว:** โหมด Announcing (กำลังขานชื่อเตือนมื้อยา)
+
+### 🔌 ผังการเสียบขาบนบอร์ด Raspberry Pi 4 (1 สาย ต่อ 1 ช่อง ไม่ซ้ำพิน)
+
+| อุปกรณ์ | ขาบนอุปกรณ์ | พินบนบอร์ด Pi (BCM) | Physical Pin | หน้าที่ |
+| :--- | :--- | :--- | :--- | :--- |
+| 🔴 **LED สีแดง** | ขั้วบวก (+) | **GPIO 17** | **Pin 11** | ไฟ Standby (ต่อผ่าน R 220Ω-330Ω) |
+| 🔴 **LED สีแดง** | ขั้วลบ (-) | **Ground** | **Pin 9** | กราวด์ไฟแดง |
+| 🟡 **LED สีเหลือง** | ขั้วบวก (+) | **GPIO 27** | **Pin 13** | ไฟ Detecting (ต่อผ่าน R 220Ω-330Ω) |
+| 🟡 **LED สีเหลือง** | ขั้วลบ (-) | **Ground** | **Pin 14** | กราวด์ไฟเหลือง |
+| 🟢 **LED สีเขียว** | ขั้วบวก (+) | **GPIO 22** | **Pin 15** | ไฟ Announcing (ต่อผ่าน R 220Ω-330Ω) |
+| 🟢 **LED สีเขียว** | ขั้วลบ (-) | **Ground** | **Pin 20** | กราวด์ไฟเขียว |
+| 📡 **HC-SR04 VCC** | **VCC** | **5V Power** | **Pin 2** | ไฟเลี้ยง 5V |
+| 📡 **HC-SR04 GND** | **GND** | **Ground** | **Pin 6** | กราวด์เซนเซอร์ |
+| 📡 **HC-SR04 TRIG** | **TRIG** | **GPIO 23** | **Pin 16** | ส่งสัญญาณคลื่นเสียง 40kHz |
+| 📡 **HC-SR04 ECHO** | **ECHO** | **GPIO 24** | **Pin 18** | รับสัญญาณสะท้อน *(ผ่านตัวต้านทานดร็อปเหลือ 3.3V)* |
+| 📷 **กล้อง USB** | หัว USB | **USB Port** | **ช่อง USB ใดก็ได้** | สแกนใบหน้า |
+| 🔊 **ลำโพง** | แจ็ค 3.5mm / USB | **Audio Jack / USB** | **รูแจ็คสีดำ หรือ USB** | เสียงเตือนยาภาษาไทย |
+| 🔘 **ปุ่มกด** | ❌ **ไม่ต้องต่อ** | ❌ **ไม่ต้องต่อ** | ❌ **ไม่ต้องต่อ** | **Hands-Free ไร้สัมผัส 100%** |
 
 ---
 
-## 📂 โครงสร้างสคริปต์บน Raspberry Pi (`pi_setup_scripts/`)
+## 🚀 ชุดสคริปต์ควบคุมบน Windows (.bat Suite)
 
-* `master_setup.sh`: ควบคุมลำดับการติดตั้งทั้งหมด
-* `01_core_packages.sh`: ติดตั้งไดรเวอร์พื้นฐาน X11, XRDP, เครื่องมือเครือข่าย และสภาพแวดล้อม Python
-* `02_setup_xfce.sh`: ติดตั้งและตั้งค่า Desktop XFCE 4.20 สไตล์ Windows (กิน RAM เพียง ~140MB)
-* `03_setup_pixel.sh`: ติดตั้ง Desktop PIXEL / LXDE สไตล์ Raspberry Pi ดั้งเดิม (กิน RAM เพียง ~100MB)
-* `04_optimizations.sh`: กำหนดค่า ZRAM, sysctl kernel tuning และล้างแคชระบบ
-* `05_enable_interfaces.sh`: เปิดใช้งานอินเทอร์เฟซ I2C, SPI, UART, SSH และตั้งค่า Udev Rules สำหรับพอร์ต USB Serial
+### 💊 เครื่องมือสำหรับกล่องหม้อหุงข้าวเตือนยา (เรียงตามลำดับ):
+1. **`1-Install-Autostart-Service.bat`**: ซิงค์โค้ดและติดตั้ง/เปิดเซอร์วิส 24/7 บน Pi
+2. **`2-View-Service-Logs.bat`**: ดู Log การทำงานของระบบสดแบบเรียลไทม์
+3. **`3-Service-Control.bat`**: ควบคุม Service (Start / Stop / Restart / Status)
+4. **`4-System-Monitor.bat`**: หน้าจอมอนิเตอร์ CPU Temp, RAM Usage, Process Memory
+5. **`5-Show-Camera-On-Pi.bat`**: เปิดหน้าต่างกล้อง AI บนหน้าจอ Remote Desktop ของ Pi
+6. **`6-Live-Camera-Stream.bat`**: ดูภาพสตรีมกล้องสดแบบเรียลไทม์ผ่านเว็บเบราว์เซอร์
+7. **`7-Enroll-Family-Face.bat`**: ลงทะเบียนใบหน้าสมาชิกครอบครัวใหม่เข้าสู่ระบบ
+8. **`8-Hardware-Diagnostic-Suite.bat`**: ชุดทดสอบฮาร์ดแวร์ทีละชิ้น (LED, Ultrasonic, ลำโพง, กล้อง)
+9. **`9-Test-LED-Direct.bat`**: สั่งเปิดไฟ LED ทั้ง 3 สีค้างไว้เพื่อตรวจสอบสายทางกายภาพ
+10. **`10-Start-Companion-Box.bat`**: รันระบบเต็มรูปแบบบนคอนโซล (เห็น Log ละเอียด)
+11. **`11-Start-Camera-Only.bat`**: รันโหมดเฉพาะกล้อง USB (สำหรับทดสอบก่อนต่อเซนเซอร์)
+
+### 🖥️ เครื่องมือจัดการ Raspberry Pi OS:
+* **`Pi-Remote-Desktop.bat`**: เปิดรีโมตเดสก์ท็อป (mstsc) ไปยังบอร์ด Pi
+* **`Pi-SSH-Terminal.bat`**: เปิดหน้าต่าง SSH Console ควบคุมบอร์ด
+* **`Control-Center.bat`**: ศูนย์ควบคุมบอร์ด Pi 18 เมนู
+* **`Pi-Check-System-Health.bat`**: ตรวจสอบสุขภาพบอร์ด ความร้อน และสถานะไฟตก
 
 ---
 
-## 📖 ข้อมูลเพิ่มเติมสำหรับ AI Assistants
-ดูรายละเอียดบริบทเชิงลึก สเปกฮาร์ดแวร์ และการจูนระดับเคอร์เนลได้ที่ไฟล์ **`AI_SYSTEM_CONTEXT.md`**
+## 🔄 ย้ายไปทำต่อบนเครื่องใหม่ (Migration Guide)
+อ่านคู่มือฉบับเต็มได้ที่ **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)**
+* เพียงติดตั้ง Python และรัน: `pip install paramiko`
+* ทำการ Clone repository และรัน **`1-Install-Autostart-Service.bat`** เพื่อเริ่มทำงานได้ทันที!
+
+---
+
+## 📖 เอกสารสถาปัตยกรรมฉบับสมบูรณ์
+ดูรายละเอียดโค้ด ตารางยา การตั้งค่า และสเปกทั้งหมดได้ที่ **[SMART_MED_SYSTEM_STATUS.md](SMART_MED_SYSTEM_STATUS.md)**

@@ -23,9 +23,14 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 PIN_LED_RED = int(os.getenv("PIN_LED_RED", 17))       # Pin 11 - Standby / Idle
 PIN_LED_YELLOW = int(os.getenv("PIN_LED_YELLOW", 27)) # Pin 13 - Scanning / Detecting
 PIN_LED_GREEN = int(os.getenv("PIN_LED_GREEN", 22))   # Pin 15 - Announcing / Complete
-PIN_BUTTON_ACK = int(os.getenv("PIN_BUTTON_ACK", 25)) # Pin 22 - Acknowledge Taken Button
+_pin_btn = os.getenv("PIN_BUTTON_ACK", "")
+PIN_BUTTON_ACK = int(_pin_btn) if _pin_btn.isdigit() else None # None = Hands-Free / Zero-Touch mode (No Button)
+AUTO_ACKNOWLEDGE_ON_REMIND = True
+# Ultrasonic Configuration (HC-SR04 / US-016)
+ULTRASONIC_MODEL = os.getenv("ULTRASONIC_MODEL", "HC-SR04") # "HC-SR04" or "US-016"
 PIN_ULTRASONIC_TRIG = int(os.getenv("PIN_ULTRASONIC_TRIG", 23)) # Pin 16 - HC-SR04 Trigger
 PIN_ULTRASONIC_ECHO = int(os.getenv("PIN_ULTRASONIC_ECHO", 24)) # Pin 18 - HC-SR04 Echo
+PIN_ULTRASONIC_OUT = int(os.getenv("PIN_ULTRASONIC_OUT", 24))   # Pin 18 - US-016 OUT (if used)
 
 # Ultrasonic Thresholds
 DISTANCE_TRIGGER_CM = float(os.getenv("DISTANCE_TRIGGER_CM", 70.0))

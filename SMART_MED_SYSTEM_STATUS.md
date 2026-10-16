@@ -15,18 +15,24 @@
 
 ---
 
-## 2. ผังการเชื่อมต่อวงจรฮาร์ดแวร์ (Hardware Pinout Mapping)
+## 2. ผังการเชื่อมต่อวงจรฮาร์ดแวร์ (Hardware Pinout Mapping - ฉบับ Hands-Free ไม่ใช้ปุ่มกด)
 
-| อุปกรณ์ | ขาอุปกรณ์ | ขาบน Raspberry Pi 4 (BCM) | Physical Pin | หน้าที่และพฤติกรรมของระบบ |
+> **หมายเหตุสำคัญ:** ระบบนี้เป็นระบบ **Hands-Free / Zero-Touch 100%** ไม่ต้องใช้ปุ่มกด (ตัดสวิตช์ GPIO 25 ออกจากวงจรแล้ว) ระบบจะจำแนกและเตือนยาอัตโนมัติ พร้อมบันทึกสถานะและเข้าสู่ช่วง Cooldown ป้องกันการเตือนซ้ำโดยผู้สูงอายุไม่ต้องสัมผัสกล่อง
+
+| อุปกรณ์ | ขาอุปกรณ์ | ขาบน Raspberry Pi 4 (BCM) | Physical Pin | คำแนะนำการต่อสาย |
 | :--- | :--- | :--- | :--- | :--- |
-| 🔴 **LED สีแดง** | Anode (+) | **GPIO 17** | Pin 11 | **Standby Mode:** ติดค้างเมื่อรอคนเดินมาใกล้ |
-| 🟡 **LED สีเหลือง** | Anode (+) | **GPIO 27** | Pin 13 | **Detecting Mode:** ติดสว่างเมื่อ Ultrasonic ปลุกกล้องตรวจจับใบหน้า |
-| 🟢 **LED สีเขียว** | Anode (+) | **GPIO 22** | Pin 15 | **Announcing Mode:** ติดค้างเมื่อแจ้งเตือนยา / กะพริบ 2 ครั้งเมื่อทักทายทั่วไป |
-| 🔘 **ปุ่มยืนยันกินยา** | Switch Pin | **GPIO 25** | Pin 22 | **Acknowledge Button:** กด 1 ครั้งหลังทานยาเสร็จ (Internal Pull-Up ต่อลง GND Pin 20) |
-| 📡 **Ultrasonic TRIG** | Trigger | **GPIO 23** | Pin 16 | ส่งสัญญาณคลื่นเสียงความถี่ 40kHz |
-| 📡 **Ultrasonic ECHO** | Echo | **GPIO 24** | Pin 18 | รับสัญญาณสะท้อน *(ผ่านตัวต้านทานแบ่งแรงดัน 1kΩ/2kΩ ดร็อปเหลือ 3.3V)* |
-| 📷 **กล้องสแกนหน้า** | USB | **USB 2.0 / 3.0** | พอร์ต USB | ดึงภาพ 2 FPS ใน Standby และ 15 FPS ใน Detecting Mode |
-| 🔊 **ลำโพง** | 3.5mm / USB | **Headphone Jack** | Audio Out | เสียงสังเคราะห์ภาษาไทยผ่าน `mpg123` |
+| 🔴 **LED สีแดง** | ขั้วบวก (Anode +) | **GPIO 17** | **Pin 11** | ผ่านตัวต้านทาน 220Ω - 330Ω (ขาขั้วลบ Cathode ต่อลง GND Pin 9) |
+| 🟡 **LED สีเหลือง** | ขั้วบวก (Anode +) | **GPIO 27** | **Pin 13** | ผ่านตัวต้านทาน 220Ω - 330Ω (ขาขั้วลบ Cathode ต่อลง GND Pin 14) |
+| 🟢 **LED สีเขียว** | ขั้วบวก (Anode +) | **GPIO 22** | **Pin 15** | ผ่านตัวต้านทาน 220Ω - 330Ω (ขาขั้วลบ Cathode ต่อลง GND Pin 20) |
+| 📡 **HC-SR04 VCC** | ไฟเลี้ยง | **5V Power** | **Pin 2** | ไฟเลี้ยง 5V (หรือใช้ Pin 4) |
+| 📡 **HC-SR04 GND** | กราวด์ | **Ground** | **Pin 6** | กราวด์ร่วมของเซนเซอร์ |
+| 📡 **HC-SR04 TRIG** | Trigger | **GPIO 23** | **Pin 16** | ส่งสัญญาณคลื่นเสียง 40kHz (ต่อตรงเข้า Pin 16) |
+| 📡 **HC-SR04 ECHO** | Echo | **GPIO 24** | **Pin 18** | **ตัวแบ่งแรงดัน:** ECHO (5V) -> 1kΩ -> Pin 18 -> 2kΩ/2.2kΩ -> GND |
+| 📷 **กล้อง USB** | พอร์ต USB | **USB 2.0 / 3.0** | **USB Port** | เสียบเข้าช่อง USB ใดก็ได้ของ Raspberry Pi 4 |
+| 🔊 **ลำโพง** | แจ็ค 3.5mm / USB | **Audio Jack 3.5mm** | **รูแจ็คสีดำ** | หรือใช้ลำโพง USB เสียบเข้าช่อง USB |
+| 🔘 **ปุ่มกด** | ❌ **ไม่ต้องต่อ** | ❌ **ไม่ใช้งาน** | ❌ **ไม่ใช้งาน** | **ตัดปุ่มออกสมบูรณ์แบบ (Hands-Free ไร้สัมผัส 100%)** |
+
+> *(หมายเหตุ: หากต้องการสลับไปใช้ US-016 หรือ US-015 ในอนาคต โค้ดยังคงรองรับแบบ Multi-Sensor ได้ทันที)*
 
 ---
 
@@ -87,7 +93,7 @@ Rice-cooker-projects/
 
 ## 4. มาตรการความปลอดภัยและป้องกันข้อผิดพลาดทางการแพทย์ (QA Mitigations)
 
-1. **State Confirmation (ไม่ใช้ Cooldown เดาสุ่ม):** การเดินผ่านไม่ได้แปลว่ากินยาแล้ว ระบบจะถือว่ากินยาแล้วเฉพาะเมื่อมีการกดปุ่ม `Acknowledge Button (GPIO 25)` เท่านั้น
+1. **Zero-Touch Hands-Free Architecture (ไม่ต้องกดปุ่ม):** ระบบออกแบบให้เป็นมิตรกับผู้สูงอายุ 100% ไม่ต้องกดปุ่มใดๆ เมื่อระบบตรวจพบและขานชื่อเตือนมื้อยานั้นแล้ว จะทำการบันทึกสถานะและเริ่มช่วง Cooldown ของมื้อนั้นโดยอัตโนมัติ เพื่อป้องกันการเตือนซ้ำซากหากผู้สูงอายุยังยืนอยู่หน้าหม้อหุงข้าว
 2. **Integrated Meal Announcement:** เตือนทั้งยาก่อนอาหารและหลังอาหารในคราวเดียว เนื่องจากผู้สูงอายุเดินมาที่หม้อหุงข้าวคือการเริ่มต้นมื้ออาหาร
 3. **Dual-Layer Persistence:** บันทึกสถานะลง RAM Disk (`/dev/shm`) เพื่อความเร็วและถนอม SD Card ควบคู่กับการบันทึกแบบ Atomic ลง `adherence_state.json` บนดิสก์จริง ป้องกันไฟดับแล้วสั่งกินยาซ้ำ
 4. **Thermal Management:** กล้องรันเพียง 2 FPS ในโหมด Standby เพื่อป้องกันความร้อนสะสมในกล่องข้างหม้อหุงข้าว
@@ -97,10 +103,17 @@ Rice-cooker-projects/
 
 ## 5. วิธีการทดสอบและสั่งงานระบบจาก Windows
 
-1. **`7-Start-Companion-Box.bat`:** เริ่มการทำงานของระบบบนบอร์ด Raspberry Pi (`192.168.88.74`) แบบเต็มรูปแบบ (Ultrasonic + Camera + LEDs + Button)
-2. **`7-Start-Camera-Only.bat`:** โหมดทดสอบเมื่อต่อเฉพาะกล้อง USB (`--camera-only`) โดยใช้โมเดล YuNet ตรวจจับใบหน้าหน้ากล้องเพื่อปลุกระบบแทน Ultrasonic sensor โดยอัตโนมัติ
-3. **`8-Enroll-Family-Face.bat`:** สแกนบันทึกใบหน้าสมาชิกใหม่เข้าสู่โฟลเดอร์ `dataset/<id>` และคำนวณเวกเตอร์ใบหน้า
-4. **`9-Hardware-Test-LEDs.bat`:** ทดสอบฮาร์ดแวร์ทีละชิ้นส่วน (ไฟ LED 3 สี, ปุ่มกด, Ultrasonic, และลำโพง)
+1. **`1-Install-Autostart-Service.bat`:** ติดตั้งและเปิดใช้งาน Service 24/7 บน Raspberry Pi อัตโนมัติ
+2. **`2-View-Service-Logs.bat`:** ดู Log การทำงานสดแบบ Real-time (journalctl)
+3. **`3-Service-Control.bat`:** ควบคุม Service (Start / Stop / Restart / Status)
+4. **`4-System-Monitor.bat`:** มอนิเตอร์ CPU Temp, RAM, และ Process Memory
+5. **`5-Show-Camera-On-Pi.bat`:** เปิดหน้าต่างกล้อง AI บนหน้าจอ Remote Desktop ของ Pi
+6. **`6-Live-Camera-Stream.bat`:** ดูสตรีมภาพกล้องสดในเบราว์เซอร์พร้อม AI Face Detection Box
+7. **`7-Enroll-Family-Face.bat`:** สแกนบันทึกใบหน้าสมาชิกใหม่เข้าสู่ระบบ
+8. **`8-Hardware-Diagnostic-Suite.bat`:** ทดสอบฮาร์ดแวร์ทีละชิ้น (ไฟ LED 3 สี, Ultrasonic HC-SR04, เสียงพูด, ถ่ายภาพกล้อง)
+9. **`9-Test-LED-Direct.bat`:** สั่งเปิดไฟ LED ทั้ง 3 สีค้างไว้เพื่อตรวจสอบการเสียบสาย
+10. **`10-Start-Companion-Box.bat`:** รันระบบเต็มรูปแบบบนคอนโซล
+11. **`11-Start-Camera-Only.bat`:** โหมดทดสอบเมื่อต่อเฉพาะกล้อง USB (`--camera-only`)
 
 ---
 
@@ -110,7 +123,7 @@ Rice-cooker-projects/
 * **Visual Presence Loop:** ใช้ YuNet รันสแกนใบหน้าที่ 2.5 FPS ในโหมด Standby (ใช้ CPU Pi 4 ไม่ถึง 5%)
 * **Instant Wakeup:** เมื่อมีคนเดินเข้ามาหน้ากล้องและเห็นใบหน้า ระบบจะเปลี่ยนสถานะเป็น `DETECTING` ทันทีเสมือนมีคลื่นอัลตราโซนิกตรวจจับ
 * **Virtual Indicators:** สถานะไฟ LED (แดง/เหลือง/เขียว) จะแสดงผลบนหน้าจอ GUI และแสดงข้อความ Emoji บน Console
-* **Virtual Acknowledge:** ปุ่มยืนยันการทานยาจะปรากฏบนหน้าจอ Tkinter หรือพิมพ์ปุ่มคำสั่งในคอนโซลได้โดยไม่ต้องพึ่งพาสวิตช์ฮาร์ดแวร์ GPIO 25
+* **Virtual Acknowledge:** บันทึกการทานยาและเริ่มช่วง Cooldown อัตโนมัติโดยไม่ต้องพึ่งพาสวิตช์ฮาร์ดแวร์ GPIO 25
 
 ---
 
@@ -119,8 +132,9 @@ Rice-cooker-projects/
 * **OpenCV Version:** `4.10.0` (ผ่านการทดสอบโหลดโมเดล YuNet และ SFace ได้อย่างสมบูรณ์)
 * **Pydantic Version:** `2.10.6` (โหลดสคีมาตารางยา `med_config.json` ถูกต้อง)
 * **Hardware Camera:** ทดสอบจับภาพจริงที่ `/dev/video0` สำเร็จที่ความละเอียด 640x480 (30 FPS)
+* **Ultrasonic HC-SR04:** ทดสอบวัดระยะทางสดบนบอร์ด Pi จริง สำเร็จที่ระยะ ~20-36 ซม.
 * **Edge-TTS & Audio:** สังเคราะห์เสียงภาษาไทย `th-TH-PremwadeeNeural` และบันทึกลงแคชออฟไลน์ได้สำเร็จ 100%
-* **Companion Service:** รันโหมด `--camera-only` ทดสอบผ่านฉลุยพร้อมตรวจจับใบหน้าอัตโนมัติ
+* **Companion Service:** รันโหมด 24/7 อัตโนมัติผ่าน `smart-cooker.service` บริโภค RAM เฉลี่ย ~90MB (ไม่เกินพิกัด 350MB)
 
 ---
 
@@ -131,8 +145,4 @@ Rice-cooker-projects/
 2. **V4L2 Zero-Lag Buffer:** บังคับฮาร์ดแวร์คิวบัฟเฟอร์กล้อง `Buffer=1` เพื่อภาพสดใหม่ทันที ไม่มีอาการภาพกระตุกค้าง
 3. **Self-Healing Watchdog:** หากกล้องเกิดสายหลุดหรือสัญญาณขัดข้อง ระบบจะ Reset และ Reconnect กล้องให้อัตโนมัติโดยโปรแกรมไม่แครช
 4. **RAM 1GB Hard Limit:** จำกัดการใช้ RAM สูงสุดไม่เกิน `350MB` ด้วย Linux Cgroups ป้องกันอาการเครื่องค้าง
-5. **เครื่องมือควบคุมจาก Windows:**
-   * **`1-Install-Autostart-Service.bat`:** ติดตั้งและเปิดใช้งาน Service อัตโนมัติ
-   * **`2-View-Service-Logs.bat`:** ดู Log การทำงานสดแบบ Real-time
-   * **`3-Service-Control.bat`:** ควบคุม รีสตาร์ต หรือปิด/เปิด Service
-   * **`10-Live-Camera-Stream.bat`:** ดูภาพวิดีโอกล้องสดในเบราว์เซอร์พร้อม AI Face Detection Box
+5. **Auto-Pause Diagnostic Hooks:** เมื่อเปิดสคริปต์ทดสอบฮาร์ดแวร์ (`8-Hardware-Diagnostic-Suite.bat`, `9-Test-LED-Direct.bat`, `6-Live-Camera-Stream.bat`) ระบบจะสั่งหยุด service ชั่วคราวอัตโนมัติเพื่อปลดล็อก GPIO และกล้อง ไม่ให้เกิดข้อผิดพลาด `GPIO busy` หรือ V4L2 device lock และจะเปิด service คืนค่าเดิมทันทีเมื่อทดสอบเสร็จ

@@ -92,6 +92,18 @@ def main():
     except Exception as e:
         print(f"[!] Warning: sync code failed ({e}), continuing with existing files...")
 
+    # Auto-pause background service to free camera and GPIO
+    service_was_running = False
+    try:
+        stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service")
+        if stdout.read().decode().strip() == "active":
+            print("[*] กำลังหยุด background service ชั่วคราวเพื่อปลดล็อกกล้องและ GPIO...")
+            ssh.exec_command("sudo systemctl stop smart-cooker.service")
+            service_was_running = True
+            time.sleep(1.0)
+    except Exception:
+        pass
+
     remote_cmd = f"cd /home/{PI_USER} && python3 -m smart_rice_cooker.main --headless {mode_flag}"
     print(f"\n[*] กำลังสั่งรัน: {remote_cmd}")
     print("-" * 70)
@@ -120,6 +132,9 @@ def main():
         print("\n\n[*] ผู้ใช้สั่งหยุดระบบ (Ctrl+C)... กำลังปิดเซอร์วิส...")
         channel.close()
     finally:
+        if service_was_running:
+            print("[*] กำลังเปิด background service กลับคืน...")
+            ssh.exec_command("sudo systemctl start smart-cooker.service")
         ssh.close()
         print("\n[+] ระบบปิดการทำงานเรียบร้อยแล้ว")
 

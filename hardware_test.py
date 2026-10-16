@@ -1,5 +1,5 @@
 """
-hardware_test.py - Windows Helper to run hardware tests on Pi
+hardware_test.py - Windows Helper to run hardware tests on Pi (Button-Free 2026 Edition)
 """
 
 import sys
@@ -39,23 +39,37 @@ def run_remote_python(ssh, code: str):
         time.sleep(0.05)
     channel.close()
 
+def pause_service_if_active(ssh):
+    stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service")
+    status = stdout.read().decode('utf-8', errors='replace').strip()
+    if status == "active":
+        print("[*] กำลังหยุด smart-cooker.service ชั่วคราวเพื่อปลดล็อก GPIO & อุปกรณ์ฮาร์ดแวร์...")
+        ssh.exec_command("sudo systemctl stop smart-cooker.service")
+        time.sleep(1.0)
+        return True
+    return False
+
+def resume_service(ssh):
+    print("[*] กำลังเปิด smart-cooker.service คืนค่าเดิม...")
+    ssh.exec_command("sudo systemctl start smart-cooker.service")
+
 def main():
     print("=" * 70)
     print("   HARDWARE DIAGNOSTIC SUITE (ทดสอบอุปกรณ์กล่องข้างหม้อหุงข้าว)")
+    print("   [โหมด Hands-Free / ไร้สัมผัส 100% - ไม่ใช้ปุ่มกด]")
     print("=" * 70)
     print(f" Target Box: {PI_USER}@{PI_IP}")
     print()
     print("  [1] ทดสอบไฟ LED 3 สี (แดง GPIO 17 -> เหลือง GPIO 27 -> เขียว GPIO 22)")
-    print("  [2] ทดสอบปุ่มกด Acknowledge Button (GPIO 25)")
-    print("  [3] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะทางสด)")
-    print("  [4] ทดสอบเสียงพูดภาษาไทยผ่านลำโพง (mpg123)")
-    print("  [5] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
-    print("  [6] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
+    print("  [2] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะทางสด TRIG 23, ECHO 24)")
+    print("  [3] ทดสอบเสียงพูดภาษาไทยผ่านลำโพง (mpg123 / Edge-TTS)")
+    print("  [4] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
+    print("  [5] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
     print("  [0] ออกจากโปรแกรม")
     print("=" * 70)
 
     try:
-        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 6, 0): ").strip()
+        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 0): ").strip()
     except EOFError:
         choice = "0"
 
@@ -71,73 +85,79 @@ def main():
         print(f"[!] เชื่อมต่อไม่สำเร็จ: {e}")
         return
 
-    if choice == "1":
-        print("\n[*] กำลังทดสอบไฟ LED 3 สี...")
-        code = """
+    was_paused = False
+    try:
+        if choice == "1":
+            was_paused = pause_service_if_active(ssh)
+            print("\n[*] กำลังทดสอบไฟ LED 3 สี...")
+            code = """
 import time
 from smart_rice_cooker.hardware.led_controller import LEDController
 from smart_rice_cooker.config import settings
 
 leds = LEDController(settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
-print('🔴 1. เปิดไฟสีแดง (Standby)...')
+if leds._is_mock:
+    print('[-] คำเตือน: ระบบเข้าสู่โหมด MOCK ไม่สามารถส่งกระแสไฟไปที่ขาจริงได้')
+else:
+    print('[+] ตรวจพบฮาร์ดแวร์ GPIO สมบูรณ์ 100%! กำลังส่งไฟ 3.3V ออกขาพินจริง...')
+
+print('🔴 1. เปิดไฟสีแดง (Pin 11 / GPIO 17) ค้างไว้ 4 วินาที...')
 leds.set_standby()
-time.sleep(2)
+time.sleep(4)
 
-print('🟡 2. เปิดไฟสีเหลือง (Detecting)...')
+print('🟡 2. เปิดไฟสีเหลือง (Pin 13 / GPIO 27) ค้างไว้ 4 วินาที...')
 leds.set_detecting()
-time.sleep(2)
+time.sleep(4)
 
-print('🟢 3. เปิดไฟสีเขียว (Announcing)...')
+print('🟢 3. เปิดไฟสีเขียว (Pin 15 / GPIO 22) ค้างไว้ 4 วินาที...')
 leds.set_announcing(has_meds=True)
-time.sleep(2)
+time.sleep(4)
+
+print('💡 4. เปิดไฟทั้ง 3 สีพร้อมกัน ค้างไว้ 4 วินาที...')
+if not leds._is_mock:
+    leds.red.on()
+    leds.yellow.on()
+    leds.green.on()
+time.sleep(4)
 
 leds.all_off()
 print('[+] ทดสอบไฟ LED ครบทุกสถานะเรียบร้อย!')
 """
-        run_remote_python(ssh, code)
+            run_remote_python(ssh, code)
 
-    elif choice == "2":
-        print("\n[*] กำลังรอการกดปุ่ม GPIO 25 (ระบบรอ 15 วินาที)...")
-        code = """
-import time
-from smart_rice_cooker.hardware.button_manager import ButtonManager
-from smart_rice_cooker.config import settings
-
-pressed = False
-def on_press():
-    global pressed
-    pressed = True
-    print('🔘 [SUCCESS] ตรวจพบการกดปุ่มยืนยัน GPIO 25 แล้ว!')
-
-btn = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=on_press)
-start = time.time()
-while time.time() - start < 15 and not pressed:
-    time.sleep(0.1)
-
-if not pressed:
-    print('[-] หมดเวลา ไม่พบสัญญาณกดปุ่ม')
-btn.close()
-"""
-        run_remote_python(ssh, code)
-
-    elif choice == "3":
-        print("\n[*] กำลังวัดระยะทาง Ultrasonic (นำมือเข้า-ออกหน้ารูเซนเซอร์)...")
-        code = """
+        elif choice == "2":
+            was_paused = pause_service_if_active(ssh)
+            print("\n[*] กำลังเริ่มอ่านค่าจากเซนเซอร์ Ultrasonic HC-SR04 จริงบนบอร์ด Pi...")
+            print("[*] นำมือขยับเข้าใกล้และถอยออกจากหน้ารูเซนเซอร์เพื่อดูค่าระยะทางสด...")
+            code = """
 import time
 from smart_rice_cooker.hardware.ultrasonic_sensor import UltrasonicSensor
 from smart_rice_cooker.config import settings
 
-sensor = UltrasonicSensor(settings.PIN_ULTRASONIC_TRIG, settings.PIN_ULTRASONIC_ECHO)
-for _ in range(20):
+sensor = UltrasonicSensor(
+    trig_pin=settings.PIN_ULTRASONIC_TRIG,
+    echo_pin=settings.PIN_ULTRASONIC_ECHO,
+    out_pin=settings.PIN_ULTRASONIC_OUT,
+    model=settings.ULTRASONIC_MODEL
+)
+print(f'[*] เซนเซอร์ที่ใช้งาน: {sensor.model}')
+print('----------------------------------------------------------------------')
+for i in range(35):
     dist = sensor.get_distance_cm()
-    print(f'📡 ระยะทางที่ตรวจจับได้: {dist:.1f} ซม.')
+    present = (dist < settings.DISTANCE_TRIGGER_CM)
+    status = '🚶 [ตรวจพบคนเข้าใกล้!]' if present else '🟢 [ระยะปกติ / นอกระยะ]'
+    bar = '█' * int(min(max(dist, 0), 100) / 4)
+    print(f'📡 วัดระยะได้: {dist:5.1f} ซม. |{bar:<25}| {status}')
     time.sleep(0.3)
-"""
-        run_remote_python(ssh, code)
 
-    elif choice == "4":
-        print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทยออกลำโพง...")
-        code = """
+sensor.stop_monitoring()
+print('[+] จบการทดสอบ Ultrasonic')
+"""
+            run_remote_python(ssh, code)
+
+        elif choice == "3":
+            print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทยออกลำโพง...")
+            code = """
 from smart_rice_cooker.voice.tts_engine import TTSEngine
 from smart_rice_cooker.voice.audio_player import AudioPlayer
 from smart_rice_cooker.config import settings
@@ -145,20 +165,23 @@ from smart_rice_cooker.config import settings
 tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.VOICE_NAME)
 player = AudioPlayer(settings.AUDIO_PLAYER_CMD)
 
-test_phrase = 'ทดสอบระบบเสียงภาษาไทย หม้อหุงข้าวอัจฉริยะพร้อมใช้งานแล้วค่ะ'
+test_phrase = 'ทดสอบระบบเสียงภาษาไทย หม้อหุงข้าวอัจฉริยะพร้อมใช้งานแล้วค่ะ ขอให้ทานข้าวให้อร่อยและสุขภาพแข็งแรงนะคะ'
 print(f'[*] กำลังพูด: {test_phrase}')
 path = tts.synthesize(test_phrase)
 if path:
     player.play_file(path, blocking=True)
 print('[+] ทดสอบเสียงเสร็จสมบูรณ์!')
 """
-        run_remote_python(ssh, code)
+            run_remote_python(ssh, code)
 
-    elif choice == "5":
-        print("\n[*] กำลังถ่ายภาพจากกล้อง USB บน Pi และดึงภาพมาแสดงบนหน้าจอ Windows...")
-        code = """
+        elif choice == "4":
+            was_paused = pause_service_if_active(ssh)
+            print("\n[*] กำลังถ่ายภาพจากกล้อง USB บน Pi และดึงภาพมาแสดงบนหน้าจอ Windows...")
+            code = """
 import cv2
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+if not cap.isOpened():
+    cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print('[-] ไม่สามารถเปิดกล้องได้')
 else:
@@ -170,28 +193,32 @@ else:
         print('[-] อ่านภาพจากกล้องไม่สำเร็จ')
     cap.release()
 """
-        run_remote_python(ssh, code)
-        
-        # Download snapshot to Windows and open it
-        try:
-            sftp = ssh.open_sftp()
-            local_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "camera_test.jpg")
-            sftp.get('/tmp/hardware_test_snapshot.jpg', local_img)
-            sftp.close()
-            print(f"[+] บันทึกภาพลงคอมพิวเตอร์สำเร็จ: {local_img}")
-            print("[*] กำลังเปิดหน้าต่างรูปภาพบน Windows...")
-            os.startfile(local_img)
-        except Exception as e:
-            print(f"[!] ไม่สามารถดึงภาพมาเปิดได้: {e}")
+            run_remote_python(ssh, code)
+            
+            # Download snapshot to Windows and open it
+            try:
+                sftp = ssh.open_sftp()
+                local_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "camera_test.jpg")
+                sftp.get('/tmp/hardware_test_snapshot.jpg', local_img)
+                sftp.close()
+                print(f"[+] บันทึกภาพลงคอมพิวเตอร์สำเร็จ: {local_img}")
+                print("[*] กำลังเปิดหน้าต่างรูปภาพบน Windows...")
+                os.startfile(local_img)
+            except Exception as e:
+                print(f"[!] ไม่สามารถดึงภาพมาเปิดได้: {e}")
 
-    elif choice == "6":
+        elif choice == "5":
+            ssh.close()
+            import subprocess
+            runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view_live_camera.py")
+            subprocess.run([sys.executable, runner])
+            return
+
+    finally:
+        if was_paused:
+            resume_service(ssh)
         ssh.close()
-        import subprocess
-        runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view_live_camera.py")
-        subprocess.run([sys.executable, runner])
-        return
 
-    ssh.close()
     print("\n[+] สิ้นสุดการทดสอบ")
 
 if __name__ == "__main__":

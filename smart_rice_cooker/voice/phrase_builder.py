@@ -21,12 +21,12 @@ class ThaiPhraseBuilder:
             med_names = [f"{m.get('name')} {m.get('dosage')}" for m in after_meds]
             parts.append(f"และหลังจากทานข้าวอิ่มแล้ว อย่าลืมทาน {' และ '.join(med_names)} นะครับ")
 
-        parts.append("เมื่อทานยาเรียบร้อยแล้ว รบกวนกดปุ่มสีเขียวด้านข้างให้ด้วยนะครับ")
+        parts.append("ขอให้ทานข้าวให้อร่อย และอย่าลืมทานยาตรงเวลานะครับ")
         return " ".join(parts)
 
     @staticmethod
     def build_unacknowledged_followup(display_name: str) -> str:
-        return f"{display_name}ครับ เมื่อสักครู่แจ้งเตือนยาไปแล้ว ทานยาเรียบร้อยหรือยังครับ? ถ้าทานแล้วรบกวนกดปุ่มสีเขียวได้เลยครับ"
+        return f"{display_name}ครับ อย่าลืมทานยาตามเวลาที่จัดไว้และดื่มน้ำตามเยอะๆ นะครับ"
 
     @staticmethod
     def build_already_taken_message(display_name: str) -> str:
