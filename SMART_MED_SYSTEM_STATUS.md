@@ -111,3 +111,13 @@ Rice-cooker-projects/
 * **Instant Wakeup:** เมื่อมีคนเดินเข้ามาหน้ากล้องและเห็นใบหน้า ระบบจะเปลี่ยนสถานะเป็น `DETECTING` ทันทีเสมือนมีคลื่นอัลตราโซนิกตรวจจับ
 * **Virtual Indicators:** สถานะไฟ LED (แดง/เหลือง/เขียว) จะแสดงผลบนหน้าจอ GUI และแสดงข้อความ Emoji บน Console
 * **Virtual Acknowledge:** ปุ่มยืนยันการทานยาจะปรากฏบนหน้าจอ Tkinter หรือพิมพ์ปุ่มคำสั่งในคอนโซลได้โดยไม่ต้องพึ่งพาสวิตช์ฮาร์ดแวร์ GPIO 25
+
+---
+
+## 7. ผลการทดสอบระบบจริงบน Raspberry Pi (Production Verification)
+
+* **OpenCV Version:** `4.10.0` (ผ่านการทดสอบโหลดโมเดล YuNet และ SFace ได้อย่างสมบูรณ์)
+* **Pydantic Version:** `2.10.6` (โหลดสคีมาตารางยา `med_config.json` ถูกต้อง)
+* **Hardware Camera:** ทดสอบจับภาพจริงที่ `/dev/video0` สำเร็จที่ความละเอียด 640x480 (30 FPS)
+* **Edge-TTS & Audio:** สังเคราะห์เสียงภาษาไทย `th-TH-PremwadeeNeural` และบันทึกลงแคชออฟไลน์ได้สำเร็จ 100%
+* **Companion Service:** รันโหมด `--camera-only` ทดสอบผ่านฉลุยพร้อมตรวจจับใบหน้าอัตโนมัติ
