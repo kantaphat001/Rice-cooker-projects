@@ -1,0 +1,15 @@
+# Runtime outputs
+backups/
+screenshots/
+config_ip.txt
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
