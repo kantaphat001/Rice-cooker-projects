@@ -6,6 +6,7 @@ Streams camera frames over HTTP (port 8080) so users can view live video from an
 import cv2
 import time
 import os
+import subprocess
 import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
@@ -25,11 +26,15 @@ if os.path.exists(MODEL_PATH):
 
 class CameraStreamer:
     def __init__(self, camera_index=0):
-        self.cap = cv2.VideoCapture(camera_index)
-        if not self.cap.isOpened():
+        self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
+        if not self.cap or not self.cap.isOpened():
+            self.cap = cv2.VideoCapture(camera_index)
+        if not self.cap or not self.cap.isOpened():
             raise RuntimeError(f"Cannot open camera index {camera_index}")
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.lock = threading.Lock()
         self.running = True
         self.latest_jpeg = None
@@ -167,6 +172,20 @@ class StreamHandler(BaseHTTPRequestHandler):
 
 def run(port=8080):
     global streamer
+
+    # Auto-pause smart-cooker.service if running so it frees /dev/video0
+    service_was_running = False
+    try:
+        check = subprocess.run(["systemctl", "is-active", "smart-cooker.service"],
+                               capture_output=True, text=True)
+        if "active" in check.stdout.strip():
+            logger.info("[StreamServer] Pausing background smart-cooker service to access camera...")
+            subprocess.run(["sudo", "systemctl", "stop", "smart-cooker.service"])
+            service_was_running = True
+            time.sleep(1.0)
+    except Exception:
+        pass
+
     logger.info("[StreamServer] Initializing Camera...")
     streamer = CameraStreamer(camera_index=0)
     server_address = ("0.0.0.0", port)
@@ -181,6 +200,9 @@ def run(port=8080):
         if streamer:
             streamer.stop()
         httpd.server_close()
+        if service_was_running:
+            logger.info("[StreamServer] Resuming background smart-cooker service...")
+            subprocess.run(["sudo", "systemctl", "start", "smart-cooker.service"])
 
 if __name__ == "__main__":
     run()
