@@ -49,9 +49,12 @@ class LEDController:
     def all_off(self):
         with self._lock:
             if not self._is_mock:
-                self.red.off()
-                self.yellow.off()
-                self.green.off()
+                for led in (self.red, self.yellow, self.green):
+                    try:
+                        if led:
+                            led.off()
+                    except Exception:
+                        pass
             else:
                 logger.debug("[LED MOCK] All LEDs OFF")
 
@@ -101,8 +104,14 @@ class LEDController:
         self.set_standby()
 
     def close(self):
-        self.all_off()
+        try:
+            self.all_off()
+        except Exception:
+            pass
         if not self._is_mock:
-            self.red.close()
-            self.yellow.close()
-            self.green.close()
+            for led in (self.red, self.yellow, self.green):
+                try:
+                    if led:
+                        led.close()
+                except Exception:
+                    pass
