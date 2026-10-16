@@ -97,6 +97,17 @@ Rice-cooker-projects/
 
 ## 5. วิธีการทดสอบและสั่งงานระบบจาก Windows
 
-1. **`7-Start-Companion-Box.bat`:** เริ่มการทำงานของระบบบนบอร์ด Raspberry Pi (`192.168.88.74`)
-2. **`8-Enroll-Family-Face.bat`:** สแกนบันทึกใบหน้าสมาชิกใหม่เข้าสู่โฟลเดอร์ `dataset/<id>` และคำนวณเวกเตอร์ใบหน้า
-3. **`9-Hardware-Test-LEDs.bat`:** ทดสอบฮาร์ดแวร์ทีละชิ้นส่วน (ไฟ LED 3 สี, ปุ่มกด, Ultrasonic, และลำโพง)
+1. **`7-Start-Companion-Box.bat`:** เริ่มการทำงานของระบบบนบอร์ด Raspberry Pi (`192.168.88.74`) แบบเต็มรูปแบบ (Ultrasonic + Camera + LEDs + Button)
+2. **`7-Start-Camera-Only.bat`:** โหมดทดสอบเมื่อต่อเฉพาะกล้อง USB (`--camera-only`) โดยใช้โมเดล YuNet ตรวจจับใบหน้าหน้ากล้องเพื่อปลุกระบบแทน Ultrasonic sensor โดยอัตโนมัติ
+3. **`8-Enroll-Family-Face.bat`:** สแกนบันทึกใบหน้าสมาชิกใหม่เข้าสู่โฟลเดอร์ `dataset/<id>` และคำนวณเวกเตอร์ใบหน้า
+4. **`9-Hardware-Test-LEDs.bat`:** ทดสอบฮาร์ดแวร์ทีละชิ้นส่วน (ไฟ LED 3 สี, ปุ่มกด, Ultrasonic, และลำโพง)
+
+---
+
+## 6. โหมดเฉพาะกล้อง (Camera-Only Mode / Standalone Vision Wakeup)
+
+เพื่อรองรับการพัฒนาและทดสอบในช่วงที่ยังไม่ได้ต่อ Ultrasonic Sensor หรือไฟ LED กายภาพ ระบบมีโหมด `--camera-only`:
+* **Visual Presence Loop:** ใช้ YuNet รันสแกนใบหน้าที่ 2.5 FPS ในโหมด Standby (ใช้ CPU Pi 4 ไม่ถึง 5%)
+* **Instant Wakeup:** เมื่อมีคนเดินเข้ามาหน้ากล้องและเห็นใบหน้า ระบบจะเปลี่ยนสถานะเป็น `DETECTING` ทันทีเสมือนมีคลื่นอัลตราโซนิกตรวจจับ
+* **Virtual Indicators:** สถานะไฟ LED (แดง/เหลือง/เขียว) จะแสดงผลบนหน้าจอ GUI และแสดงข้อความ Emoji บน Console
+* **Virtual Acknowledge:** ปุ่มยืนยันการทานยาจะปรากฏบนหน้าจอ Tkinter หรือพิมพ์ปุ่มคำสั่งในคอนโซลได้โดยไม่ต้องพึ่งพาสวิตช์ฮาร์ดแวร์ GPIO 25

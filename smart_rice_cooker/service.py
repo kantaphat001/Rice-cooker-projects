@@ -30,8 +30,9 @@ from .ui.native_gui import NativeElderlyGUI
 logger = logging.getLogger(__name__)
 
 class CompanionService:
-    def __init__(self, gui: Optional[NativeElderlyGUI] = None):
+    def __init__(self, gui: Optional[NativeElderlyGUI] = None, camera_only: bool = False):
         self.gui = gui
+        self.camera_only = camera_only
         self.event_bus = EventBus()
 
         # 1. Hardware Drivers
@@ -77,8 +78,12 @@ class CompanionService:
         # Start Camera Warm-up (2 FPS)
         self.camera.start()
 
-        # Start Ultrasonic distance loop
-        self.ultrasonic.start_monitoring()
+        if self.camera_only:
+            logger.info("[Service] 📸 Camera-Only Mode ACTIVE: Continuous face trigger enabled.")
+            threading.Thread(target=self._camera_presence_loop, daemon=True).start()
+        else:
+            # Start Ultrasonic distance loop
+            self.ultrasonic.start_monitoring()
 
         # Set Initial State (Red LED ON)
         self.fsm.transition_to(SystemState.STANDBY)
@@ -86,6 +91,20 @@ class CompanionService:
             self.gui.reset_to_standby()
 
         logger.info("[Service] ✅ All subsystems operational and listening.")
+
+    def _camera_presence_loop(self):
+        """Used when Ultrasonic sensor is not connected; wakes up when face is seen."""
+        logger.info("[Service] Camera presence loop active (polling for faces)...")
+        while self.camera._running:
+            if self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
+                frame = self.camera.get_latest_frame()
+                if frame is not None and frame.size > 0:
+                    faces = self.detector.detect(frame)
+                    if faces is not None and len(faces) > 0:
+                        logger.info("[Service] 👁️ Face visually detected in camera! Triggering pipeline.")
+                        self._handle_person_detected(distance_cm=50.0)
+                        time.sleep(1.5)
+            time.sleep(0.4)
 
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.STANDBY:

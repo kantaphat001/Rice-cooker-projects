@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description="Smart Rice Cooker Companion Box")
     parser.add_argument("--gui", action="store_true", help="Launch native Tkinter GUI")
     parser.add_argument("--headless", action="store_true", help="Run without graphical display")
+    parser.add_argument("--camera-only", action="store_true", help="Run in camera-only mode (bypasses ultrasonic sensor, uses camera face presence)")
     parser.add_argument("--rebuild-faces", action="store_true", help="Rebuild face recognition embeddings database")
     args = parser.parse_args()
 
@@ -31,7 +32,7 @@ def main():
     if args.gui or (not args.headless and os.getenv("DISPLAY")):
         gui_instance = NativeElderlyGUI(fullscreen=False)
 
-    service = CompanionService(gui=gui_instance)
+    service = CompanionService(gui=gui_instance, camera_only=args.camera_only)
 
     if gui_instance:
         gui_instance.on_ack_callback = service._handle_button_press
