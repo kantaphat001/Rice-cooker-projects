@@ -28,6 +28,7 @@ class YuNetDetector:
                     nms_threshold=self.nms_threshold,
                     top_k=5000
                 )
+                self._input_size = (640, 480)
                 logger.info(f"[YuNet] Loaded model from {self.model_path}")
             except Exception as e:
                 logger.error(f"[YuNet] Failed to initialize FaceDetectorYN: {e}")
@@ -49,6 +50,9 @@ class YuNetDetector:
             return None
 
         h, w = image.shape[:2]
-        self._detector.setInputSize((w, h))
+        if self._input_size != (w, h):
+            self._detector.setInputSize((w, h))
+            self._input_size = (w, h)
+
         _, faces = self._detector.detect(image)
         return faces

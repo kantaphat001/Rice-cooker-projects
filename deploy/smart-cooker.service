@@ -1,0 +1,32 @@
+[Unit]
+Description=Smart Rice Cooker Companion Box (2026 Production Edition)
+After=network.target sound.target multi-user.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi
+Environment="PYTHONUNBUFFERED=1"
+Environment="DISPLAY=:0"
+ExecStart=/usr/bin/python3 -m smart_rice_cooker.main --headless --camera-only
+
+# Self-Healing & High Availability
+Restart=always
+RestartSec=3s
+KillMode=mixed
+TimeoutStopSec=5s
+
+# 1GB RAM Guardian (Hard Limits via Linux Cgroups)
+MemoryHigh=300M
+MemoryMax=350M
+CPUQuota=150%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smart-cooker
+
+[Install]
+WantedBy=multi-user.target

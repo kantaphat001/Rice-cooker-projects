@@ -6,6 +6,7 @@ Wires together Sensors, Vision AI, Audio, LEDs, State Machine, and GUI.
 import time
 import logging
 import threading
+import gc
 from typing import Optional, Tuple
 
 from .config import settings
@@ -112,6 +113,8 @@ class CompanionService:
             self.camera.set_active_mode(False)
             if self.gui:
                 self.gui.reset_to_standby()
+            # Immediately reclaim RAM on 1GB Pi
+            gc.collect()
 
         elif new_state == SystemState.DETECTING:
             self.leds.set_detecting()
