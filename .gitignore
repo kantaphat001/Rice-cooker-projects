@@ -1,15 +1,24 @@
-# Runtime outputs
+# Runtime outputs & User data (Privacy Guard)
+dataset/
+images/meds/
+audio_cache/
+*.onnx
+med_config.json
+adherence_state.json
+config_ip.txt
 backups/
 screenshots/
-config_ip.txt
+logs/
 
-# OS generated files
+# Python & OS
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
-
-# Temporary files
 *.tmp
 *.log

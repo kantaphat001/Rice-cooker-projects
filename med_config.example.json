@@ -1,0 +1,105 @@
+{
+  "members": {
+    "grandpa": {
+      "display_name": "คุณตา",
+      "voice_greeting": "สวัสดีครับคุณตา",
+      "schedules": {
+        "morning": {
+          "label": "มื้อเช้า",
+          "start_time": "06:00",
+          "end_time": "09:30",
+          "before_meal": [
+            {
+              "name": "ยาโรคกระเพาะ",
+              "dosage": "1 เม็ด (ก่อนอาหาร 30 นาที)",
+              "image": "images/meds/gastric.jpg"
+            }
+          ],
+          "after_meal": [
+            {
+              "name": "ยาลดความดัน",
+              "dosage": "1 เม็ด",
+              "image": "images/meds/blood_pressure.jpg"
+            },
+            {
+              "name": "ยาบำรุงหัวใจ",
+              "dosage": "1 เม็ด",
+              "image": "images/meds/heart.jpg"
+            }
+          ]
+        },
+        "noon": {
+          "label": "มื้อกลางวัน",
+          "start_time": "11:30",
+          "end_time": "13:30",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาเบาหวาน",
+              "dosage": "1 เม็ด",
+              "image": "images/meds/diabetes.jpg"
+            }
+          ]
+        },
+        "evening": {
+          "label": "มื้อเย็น",
+          "start_time": "17:30",
+          "end_time": "20:00",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาลดไขมันในเส้นเลือด",
+              "dosage": "1 เม็ด",
+              "image": "images/meds/cholesterol.jpg"
+            }
+          ]
+        },
+        "bedtime": {
+          "label": "ก่อนนอน",
+          "start_time": "21:00",
+          "end_time": "22:30",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาช่วยปรับการนอนหลับ",
+              "dosage": "ครึ่งเม็ด",
+              "image": "images/meds/sleep.jpg"
+            }
+          ]
+        }
+      }
+    },
+    "grandma": {
+      "display_name": "คุณยาย",
+      "voice_greeting": "สวัสดีค่ะคุณยาย",
+      "schedules": {
+        "morning": {
+          "label": "มื้อเช้า",
+          "start_time": "06:30",
+          "end_time": "09:30",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาวิตามินรวมบำรุงกระดูก",
+              "dosage": "1 เม็ด",
+              "image": "images/meds/calcium.jpg"
+            }
+          ]
+        },
+        "evening": {
+          "label": "มื้อเย็น",
+          "start_time": "17:30",
+          "end_time": "20:00",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาบำรุงสายตา",
+              "dosage": "1 แคปซูล",
+              "image": "images/meds/eye.jpg"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
