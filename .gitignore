@@ -3,6 +3,9 @@ dataset/
 images/meds/
 audio_cache/
 *.onnx
+*.jpg
+*.jpeg
+*.png
 med_config.json
 adherence_state.json
 config_ip.txt
