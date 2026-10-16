@@ -121,3 +121,18 @@ Rice-cooker-projects/
 * **Hardware Camera:** ทดสอบจับภาพจริงที่ `/dev/video0` สำเร็จที่ความละเอียด 640x480 (30 FPS)
 * **Edge-TTS & Audio:** สังเคราะห์เสียงภาษาไทย `th-TH-PremwadeeNeural` และบันทึกลงแคชออฟไลน์ได้สำเร็จ 100%
 * **Companion Service:** รันโหมด `--camera-only` ทดสอบผ่านฉลุยพร้อมตรวจจับใบหน้าอัตโนมัติ
+
+---
+
+## 8. ระบบปฏิบัติการอิสระ 24/7 (24/7 Autonomous Appliance - RAM 1GB Guardian)
+
+ระบบถูกติดตั้งเป็น **Systemd Background Daemon (`smart-cooker.service`)** ทำงานอัตโนมัติบน Raspberry Pi โดยไม่ต้องต่อคอมพิวเตอร์:
+1. **Boot on Power:** เสียบปลั๊กไฟให้ Raspberry Pi แล้วระบบจะเริ่มทำงานทันทีภายใน 5 วินาที
+2. **V4L2 Zero-Lag Buffer:** บังคับฮาร์ดแวร์คิวบัฟเฟอร์กล้อง `Buffer=1` เพื่อภาพสดใหม่ทันที ไม่มีอาการภาพกระตุกค้าง
+3. **Self-Healing Watchdog:** หากกล้องเกิดสายหลุดหรือสัญญาณขัดข้อง ระบบจะ Reset และ Reconnect กล้องให้อัตโนมัติโดยโปรแกรมไม่แครช
+4. **RAM 1GB Hard Limit:** จำกัดการใช้ RAM สูงสุดไม่เกิน `350MB` ด้วย Linux Cgroups ป้องกันอาการเครื่องค้าง
+5. **เครื่องมือควบคุมจาก Windows:**
+   * **`1-Install-Autostart-Service.bat`:** ติดตั้งและเปิดใช้งาน Service อัตโนมัติ
+   * **`2-View-Service-Logs.bat`:** ดู Log การทำงานสดแบบ Real-time
+   * **`3-Service-Control.bat`:** ควบคุม รีสตาร์ต หรือปิด/เปิด Service
+   * **`10-Live-Camera-Stream.bat`:** ดูภาพวิดีโอกล้องสดในเบราว์เซอร์พร้อม AI Face Detection Box
