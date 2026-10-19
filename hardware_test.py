@@ -18,8 +18,9 @@ except ImportError:
 
 import re
 from pc_audio import play_cached_file
+from smart_rice_cooker.utils import get_pi_ip
 
-PI_IP = "192.168.88.74"
+PI_IP = get_pi_ip()
 PI_USER = "pi"
 PI_PASS = "1234"
 

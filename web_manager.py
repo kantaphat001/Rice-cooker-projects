@@ -4,6 +4,10 @@ Zero-dependency web application (Python Standard Library HTTP Server).
 Features:
 - Responsive Platform-Adaptive Layout: Tailored for Desktop PC, Tablets, and Smartphones.
 - Mobile PWA & Home Screen Shortcut: Add to Home Screen with native app standalone mode.
+- Valid 192x192 & 512x512 PNG Icons and Service Worker for 100% PWA Compliance.
+- In-App Browser Detector: Alerts users in LINE/Social apps to open in native Safari/Chrome.
+- Remote Wi-Fi Network Manager: Scan, add, and save Wi-Fi networks on Pi (Grandma's house, Phone Hotspot).
+- Dynamic Pi Discovery: Automatically resolves Raspberry Pi on any Wi-Fi via mDNS (raspberrypi.local).
 - Local Network Auto-Discovery & QR Code: Easily scan or share link to mobile devices on Wi-Fi.
 - Visual Medication Manager: Add & delete medications with 1 click without touching JSON.
 - Color tag selector (🟢 ซองสีเขียว, 🔵 ซองสีฟ้า, 🟡 ซองสีเหลือง, 🌸 ซองสีชมพู, ฯลฯ)
@@ -17,6 +21,9 @@ import json
 import base64
 import time
 import socket
+import struct
+import zlib
+import math
 import webbrowser
 import threading
 from pathlib import Path
@@ -27,24 +34,18 @@ from urllib.parse import urlparse, parse_qs
 ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR))
 
+from smart_rice_cooker.utils import get_pi_ip, get_local_ip
+from deploy.wifi_manager import (
+    get_current_wifi, scan_available_wifi, list_saved_wifi,
+    add_wifi_network, delete_saved_wifi
+)
+
 CONFIG_PATH = ROOT_DIR / "med_config.json"
 DATASET_DIR = ROOT_DIR / "dataset"
 DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
-PI_IP = "192.168.88.74"
 PI_USER = "pi"
 PI_PASS = "1234"
-
-def get_local_ip():
-    """Detects primary local network IP address of the host."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
 
 LOCAL_IP = get_local_ip()
 CURRENT_PORT = 8080
@@ -81,25 +82,27 @@ def save_config(config_data):
 def _sync_config_to_pi():
     if not PARAMIKO_AVAILABLE:
         return
+    pi_ip = get_pi_ip()
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(PI_IP, username=PI_USER, password=PI_PASS, timeout=5)
+        ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=5)
         sftp = ssh.open_sftp()
         sftp.put(str(CONFIG_PATH), f"/home/{PI_USER}/med_config.json")
         sftp.close()
         ssh.close()
-        print("[+] Synced med_config.json to Raspberry Pi")
+        print(f"[+] Synced med_config.json to Raspberry Pi ({pi_ip})")
     except Exception as e:
-        print(f"[!] Failed to sync config to Pi: {e}")
+        print(f"[!] Failed to sync config to Pi ({pi_ip}): {e}")
 
 def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path):
     if not PARAMIKO_AVAILABLE:
         return
+    pi_ip = get_pi_ip()
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(PI_IP, username=PI_USER, password=PI_PASS, timeout=8)
+        ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
         
         # Pause service if active to avoid lock
         ssh.exec_command("sudo systemctl stop smart-cooker.service")
@@ -126,6 +129,63 @@ def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path):
         ssh.close()
     except Exception as e:
         print(f"[!] Sync photo to Pi error: {e}")
+
+def generate_png_icon(size: int = 192) -> bytes:
+    """Generates a valid, crisp RGBA PNG icon in pure Python standard library."""
+    w, h = size, size
+    pixels = bytearray()
+    r_corner = size * 0.22
+    cx, cy = size / 2.0, size / 2.0
+    
+    for y in range(h):
+        pixels.append(0) # PNG filter type 0 (None)
+        for x in range(w):
+            dx = max(0, abs(x - cx) - (cx - r_corner))
+            dy = max(0, abs(y - cy) - (cy - r_corner))
+            dist = math.sqrt(dx*dx + dy*dy)
+            
+            if dist > r_corner:
+                pixels.extend([0, 0, 0, 0])
+                continue
+                
+            r, g, b, a = 5, 150, 105, 255
+            
+            # Rice bowl shape
+            bx = x - cx
+            by = y - (cy + size*0.08)
+            bowl_r = size * 0.28
+            if by >= -size*0.02 and (bx*bx + by*by) <= bowl_r*bowl_r:
+                r, g, b = 255, 255, 255
+            elif abs(bx) <= size*0.32 and abs(y - (cy + size*0.05)) <= size*0.04:
+                r, g, b = 226, 232, 240
+            # Steam curves
+            elif abs(x - cx) <= size*0.03 and cy - size*0.25 <= y <= cy - size*0.05:
+                r, g, b = 255, 255, 255
+            elif abs(x - (cx - size*0.12)) <= size*0.025 and cy - size*0.22 <= y <= cy - size*0.06:
+                r, g, b = 167, 243, 208
+            elif abs(x - (cx + size*0.12)) <= size*0.025 and cy - size*0.22 <= y <= cy - size*0.06:
+                r, g, b = 167, 243, 208
+            # Capsule badge
+            px = x - (cx + size*0.20)
+            py = y - (cy + size*0.18)
+            if abs(px) <= size*0.14 and abs(py) <= size*0.08:
+                if px < 0:
+                    r, g, b = 244, 63, 94
+                else:
+                    r, g, b = 56, 189, 248
+                    
+            pixels.extend([r, g, b, a])
+            
+    png = b'\x89PNG\r\n\x1a\n'
+    ihdr = struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)
+    png += struct.pack('>I', len(ihdr)) + b'IHDR' + ihdr + struct.pack('>I', zlib.crc32(b'IHDR' + ihdr))
+    compressed = zlib.compress(bytes(pixels), level=9)
+    png += struct.pack('>I', len(compressed)) + b'IDAT' + compressed + struct.pack('>I', zlib.crc32(b'IDAT' + compressed))
+    png += struct.pack('>I', 0) + b'IEND' + struct.pack('>I', zlib.crc32(b'IEND'))
+    return png
+
+PNG_ICON_192 = generate_png_icon(192)
+PNG_ICON_512 = generate_png_icon(512)
 
 ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
@@ -156,7 +216,7 @@ ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" widt
 
 MANIFEST_JSON = {
     "name": "ระบบเตือนยาหม้อหุงข้าวอัจฉริยะ",
-    "short_name": "เตือนยาหม้อหุงข้าว",
+    "short_name": "เตือนยา",
     "description": "ระบบจัดการตารางยาและใบหน้าสมาชิกครอบครัวข้างหม้อหุงข้าว (สำหรับผู้สูงอายุ)",
     "start_url": "/",
     "scope": "/",
@@ -166,13 +226,37 @@ MANIFEST_JSON = {
     "orientation": "portrait-primary",
     "icons": [
         {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
             "src": "/icon.svg",
             "sizes": "512x512",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "type": "image/svg+xml"
         }
     ]
 }
+
+SW_JS = """
+// Minimal Service Worker for PWA Add to Home Screen support
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil(clients.claim());
+});
+self.addEventListener('fetch', (e) => {
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});
+"""
 
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="th">
@@ -184,12 +268,13 @@ HTML_CONTENT = """<!DOCTYPE html>
   <!-- Mobile & PWA Optimization Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="เตือนยาหม้อหุงข้าว">
+  <meta name="apple-mobile-web-app-title" content="เตือนยา">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#059669">
   <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="apple-touch-icon" href="/icon.svg">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -202,7 +287,6 @@ HTML_CONTENT = """<!DOCTYPE html>
     html {
       scroll-behavior: smooth;
     }
-    /* Safe area padding for mobile iPhone home bar */
     .safe-pb {
       padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     }
@@ -212,7 +296,6 @@ HTML_CONTENT = """<!DOCTYPE html>
     .extra-pb-for-dock {
       padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
     }
-    /* Hide scrollbars for smooth touch scroll */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -220,39 +303,74 @@ HTML_CONTENT = """<!DOCTYPE html>
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+    @keyframes bounce-slow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .animate-bounce-slow {
+      animation: bounce-slow 1.5s infinite ease-in-out;
+    }
   </style>
 </head>
 <body class="min-h-screen text-slate-800 extra-pb-for-dock">
 
+  <!-- LINE / Social In-App Browser Warning Banner -->
+  <div id="inapp-warning-banner" class="hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white px-4 py-3 text-xs sm:text-sm font-medium shadow-md">
+    <div class="max-w-5xl mx-auto flex items-start justify-between gap-3">
+      <div class="flex items-start gap-2.5">
+        <span class="text-2xl shrink-0">⚠️</span>
+        <div>
+          <p class="font-bold text-sm sm:text-base">กำลังเปิดในแอป LINE / เบราว์เซอร์ในแอป</p>
+          <p class="text-xs text-amber-100 mt-0.5 leading-relaxed">
+            แอป LINE จะไม่อนุญาตให้สร้าง Shortcut ลงหน้าจอโฮมโดยตรง กรุณาแตะที่จุด 3 จุด <strong>[ ⋮ หรือ ⋯ ]</strong> ที่มุมจอ แล้วเลือก <strong>"เปิดด้วยเบราว์เซอร์ภายนอก" (Open in Safari / Chrome)</strong> ครับ
+          </p>
+          <div class="mt-2.5 flex flex-wrap gap-2">
+            <button onclick="copyMobileUrl()" class="px-3 py-1.5 bg-white text-amber-900 rounded-lg text-xs font-bold shadow-xs active:scale-95 transition">
+              📋 คัดลอกลิงก์ไปเปิดใน Safari/Chrome
+            </button>
+          </div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('inapp-warning-banner').remove()" class="text-xl font-bold leading-none p-1 hover:text-amber-200">&times;</button>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-md sticky top-0 z-30">
-    <div class="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between gap-2">
+    <div class="max-w-5xl mx-auto px-3.5 sm:px-4 py-3 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 min-w-0">
         <span class="text-3xl shrink-0">🍚</span>
         <div class="min-w-0">
-          <h1 class="text-lg sm:text-2xl font-bold tracking-tight truncate">กล่องหม้อหุงข้าวอัจฉริยะ</h1>
+          <h1 class="text-base sm:text-xl font-bold tracking-tight truncate">กล่องหม้อหุงข้าวอัจฉริยะ</h1>
           <p class="text-[11px] sm:text-xs text-emerald-100 truncate">จัดการตารางยาและสมาชิกในบ้าน (Elderly Friendly)</p>
         </div>
       </div>
 
       <div class="flex items-center gap-2 shrink-0">
+        <!-- Wi-Fi Manager Button -->
+        <button onclick="openWifiModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-900 active:scale-95 text-white rounded-xl text-xs font-semibold transition shadow-xs border border-emerald-500/40">
+          <span>📶</span>
+          <span class="hidden sm:inline">Wi-Fi บอร์ด Pi</span>
+          <span class="sm:hidden">Wi-Fi</span>
+        </button>
+
         <!-- Shortcut / Install Button -->
-        <button onclick="openShortcutModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-semibold transition shadow-sm">
+        <button onclick="openShortcutModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-bold transition shadow-xs">
           <span>📲</span>
-          <span class="hidden sm:inline">เพิ่ม Shortcut ลงมือถือ</span>
+          <span class="hidden sm:inline">สร้าง Shortcut หน้าจอโฮม</span>
           <span class="sm:hidden">Shortcut</span>
         </button>
 
-        <!-- QR Code / Open on Phone Button (visible on PC) -->
-        <button onclick="openQrModal()" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-900 active:scale-95 text-white rounded-xl text-xs font-medium transition shadow-sm border border-emerald-500/40">
+        <!-- QR Code / Open on Phone Button (PC view) -->
+        <button onclick="openQrModal()" class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 hover:bg-emerald-900 active:scale-95 text-white rounded-xl text-xs font-medium transition shadow-xs border border-emerald-500/40">
           <span>📱</span>
           <span>เปิดบนมือถือ</span>
         </button>
 
         <!-- Pi Status Pill -->
-        <div id="pi-status" class="hidden md:flex items-center gap-1.5 bg-emerald-900/60 backdrop-blur px-2.5 py-1.5 rounded-full text-[11px] font-medium">
+        <div id="pi-status" class="hidden lg:flex items-center gap-1.5 bg-emerald-900/60 backdrop-blur px-2.5 py-1.5 rounded-full text-[11px] font-medium">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Pi: 192.168.88.74</span>
+          <span id="pi-status-text">Pi: กำลังเชื่อมต่อ...</span>
         </div>
       </div>
     </div>
@@ -313,13 +431,75 @@ HTML_CONTENT = """<!DOCTYPE html>
     </button>
   </nav>
 
+  <!-- Modal: Wi-Fi Manager (Change Wi-Fi / Move to another location) -->
+  <div id="modal-wifi" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-800 max-h-[90vh] overflow-y-auto safe-pb">
+      <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden"></div>
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-lg font-bold flex items-center gap-2 text-emerald-800">
+          <span>📶</span> จัดการ Wi-Fi บนกล่องหม้อหุงข้าว (Pi)
+        </h3>
+        <button onclick="closeModal('modal-wifi')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg leading-none">&times;</button>
+      </div>
+
+      <!-- Current WiFi Status Banner -->
+      <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl mb-4 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium text-emerald-700">Wi-Fi ที่บอร์ด Pi เชื่อมต่ออยู่:</span>
+          <p id="wifi-current-name" class="font-bold text-emerald-950 text-base">กำลังโหลด...</p>
+        </div>
+        <span class="text-2xl">🟢</span>
+      </div>
+
+      <!-- Helpful Advice for Moving -->
+      <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-4 text-xs text-blue-900 leading-relaxed">
+        <strong>💡 คำแนะนำเมื่อต้องย้ายไปใช้งานที่อื่น (เช่น บ้านคุณยาย หรือนอกสถานที่):</strong><br>
+        คุณสามารถกรอกชื่อ Wi-Fi และรหัสผ่านของบ้านปลายทาง (หรือ <strong>Personal Hotspot มือถือ</strong> ของคุณ) ไว้ในระบบนี้ล่วงหน้าได้เลย บอร์ด Pi จะจดจำไว้ เมื่อยกเครื่องไปสถานที่นั้น บอร์ดจะเชื่อมต่อให้อัตโนมัติทันทีครับ!
+      </div>
+
+      <!-- Add New WiFi Form -->
+      <div class="space-y-3 mb-5 border-t border-slate-100 pt-3">
+        <h4 class="text-sm font-bold text-slate-800">➕ เพิ่ม Wi-Fi ใหม่เข้าบอร์ด Pi</h4>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">ชื่อ Wi-Fi (SSID):</label>
+          <input type="text" id="new-wifi-ssid" placeholder="เช่น Wi-Fi บ้านใหม่, iPhone, MyHotspot" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">รหัสผ่าน Wi-Fi:</label>
+          <input type="password" id="new-wifi-pass" placeholder="กรอกรหัสผ่าน (เว้นว่างได้ถ้าไม่มีรหัส)" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+        </div>
+        <button onclick="submitNewWifi()" id="btn-save-wifi" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-xs active:scale-95 transition min-h-[44px]">
+          💾 บันทึก Wi-Fi ใหม่ลงบอร์ด Pi
+        </button>
+        <div id="wifi-status-msg" class="hidden text-xs text-center p-2.5 rounded-xl font-medium"></div>
+      </div>
+
+      <!-- Scan Nearby WiFi -->
+      <div class="border-t border-slate-100 pt-3">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="text-sm font-bold text-slate-800">🔍 คลื่น Wi-Fi รอบๆ บอร์ด Pi</h4>
+          <button onclick="scanWifiNearby()" id="btn-scan-wifi" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition active:scale-95">
+            สแกนค้นหา
+          </button>
+        </div>
+        <div id="wifi-scan-list" class="space-y-1.5 max-h-40 overflow-y-auto text-xs text-slate-600">
+          <p class="text-slate-400 italic py-2">กดปุ่ม 'สแกนค้นหา' เพื่อดู Wi-Fi บริเวณใกล้เคียง</p>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+        <button onclick="closeModal('modal-wifi')" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">ปิด</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Add Shortcut to Home Screen (Mobile PWA Guide) -->
   <div id="modal-shortcut" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
     <div class="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-800 max-h-[90vh] overflow-y-auto safe-pb">
       <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden"></div>
       <div class="flex justify-between items-center mb-3">
         <h3 class="text-lg font-bold flex items-center gap-2 text-emerald-800">
-          <span>📲</span> เพิ่ม Shortcut ลงหน้าจอมือถือ
+          <span>📲</span> วิธีเพิ่ม Shortcut ลงหน้าจอมือถือ
         </h3>
         <button onclick="closeModal('modal-shortcut')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg leading-none">&times;</button>
       </div>
@@ -330,6 +510,17 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button onclick="triggerPwaInstall()" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition active:scale-95">
           ✨ กดที่นี่เพื่อติดตั้งลงหน้าจอมือถือทันที
         </button>
+      </div>
+
+      <!-- Quick Copy Link Box (Important for LINE users) -->
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+        <p class="text-xs font-bold text-amber-900 mb-1">🔗 ลิงก์สำหรับเปิดใน Safari หรือ Google Chrome:</p>
+        <div class="flex items-center gap-2">
+          <input type="text" id="shortcut-url-input" readonly class="flex-1 bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-700 select-all">
+          <button onclick="copyMobileUrl()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-lg text-xs font-bold shrink-0 transition">
+            คัดลอก
+          </button>
+        </div>
       </div>
 
       <!-- Platform Selection Tabs -->
@@ -343,51 +534,57 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
 
       <!-- iOS Instructions -->
-      <div id="tab-content-ios" class="space-y-3 text-sm">
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-xs">1</span>
+      <div id="tab-content-ios" class="space-y-3.5 text-sm">
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-sm">1</span>
           <div>
-            <p class="font-semibold text-slate-800">แตะปุ่ม "แชร์" (Share)</p>
-            <p class="text-xs text-slate-500">ที่แถบเมนูด้านล่างของเบราว์เซอร์ Safari (รูปสี่เหลี่ยมมีลูกศรชี้ขึ้น 📤)</p>
+            <p class="font-bold text-slate-800 text-base">แตะปุ่ม "แชร์" (Share 📤) ที่แถบล่างสุด</p>
+            <p class="text-xs text-slate-500 mt-0.5">มองหาไอคอนรูปสี่เหลี่ยมที่มีลูกศรชี้ขึ้น 📤 ที่แถบเมนูด้านล่างของ Safari</p>
+            <div class="mt-2 text-center text-blue-600 font-bold text-xs animate-bounce-slow">
+              👇 แตะปุ่มแชร์ที่แถบล่างสุดของจอ iPhone
+            </div>
           </div>
         </div>
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-xs">2</span>
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-sm">2</span>
           <div>
-            <p class="font-semibold text-slate-800">เลือก "เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen)</p>
-            <p class="text-xs text-slate-500">เลื่อนลงมาด้านล่างของเมนูแชร์ แล้วแตะที่ไอคอนรูปเครื่องหมายบวก ➕</p>
+            <p class="font-bold text-slate-800">เลื่อนลงมาแตะที่ "เพิ่มไปยังหน้าจอโฮม" ➕</p>
+            <p class="text-xs text-slate-500 mt-0.5">เมนู "Add to Home Screen" อยู่ด้านล่างของหน้าต่างแชร์</p>
           </div>
         </div>
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-xs">3</span>
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0 text-sm">3</span>
           <div>
-            <p class="font-semibold text-slate-800">แตะ "เพิ่ม" (Add) ที่มุมขวาบน</p>
-            <p class="text-xs text-slate-500">คุณจะได้ไอคอน 🍚 <strong>เตือนยาหม้อหุงข้าว</strong> ปรากฏบนหน้าจอมือถือ กดเปิดได้เต็มจอเหมือนแอปจริงทันที!</p>
+            <p class="font-bold text-slate-800">แตะ "เพิ่ม" (Add) ที่มุมขวาบน</p>
+            <p class="text-xs text-slate-500 mt-0.5">ไอคอนแอป 🍚 <strong>เตือนยา</strong> จะไปอยู่ที่หน้าจอโฮมของคุณ เปิดใช้งานได้เต็มจอทันที!</p>
           </div>
         </div>
       </div>
 
       <!-- Android Instructions -->
-      <div id="tab-content-android" class="hidden space-y-3 text-sm">
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-xs">1</span>
+      <div id="tab-content-android" class="hidden space-y-3.5 text-sm">
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-sm">1</span>
           <div>
-            <p class="font-semibold text-slate-800">แตะที่ "จุด 3 จุด" (⋮)</p>
-            <p class="text-xs text-slate-500">ที่มุมบนขวาของ Google Chrome</p>
+            <p class="font-bold text-slate-800 text-base">แตะที่ "จุด 3 จุด" (⋮) ที่มุมบนขวา</p>
+            <p class="text-xs text-slate-500 mt-0.5">เมนูการตั้งค่าของ Google Chrome อยู่ที่มุมขวาบน</p>
+            <div class="mt-2 text-center text-emerald-700 font-bold text-xs animate-bounce-slow">
+              👆 แตะจุด 3 จุด ที่มุมขวาบนของเบราว์เซอร์
+            </div>
           </div>
         </div>
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-xs">2</span>
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-sm">2</span>
           <div>
-            <p class="font-semibold text-slate-800">เลือก "เพิ่มลงในหน้าจอหลัก" หรือ "ติดตั้งแอป"</p>
-            <p class="text-xs text-slate-500">แตะเลือกเมนู "Add to Home screen" หรือ "Install App"</p>
+            <p class="font-bold text-slate-800">เลือก "เพิ่มลงในหน้าจอหลัก" หรือ "ติดตั้งแอป"</p>
+            <p class="text-xs text-slate-500 mt-0.5">เมนู "Add to Home screen" หรือ "Install App"</p>
           </div>
         </div>
-        <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-xs">3</span>
+        <div class="flex items-start gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0 text-sm">3</span>
           <div>
-            <p class="font-semibold text-slate-800">แตะยืนยัน "เพิ่ม"</p>
-            <p class="text-xs text-slate-500">ไอคอนแอปจะไปอยู่ที่หน้าจอมือถือ สามารถกดเปิดใช้งานได้สะดวกรวดเร็ว</p>
+            <p class="font-bold text-slate-800">แตะยืนยัน "เพิ่ม / ติดตั้ง"</p>
+            <p class="text-xs text-slate-500 mt-0.5">ไอคอนแอปจะปรากฏบนหน้าจอมือถือของคุณทันที</p>
           </div>
         </div>
       </div>
@@ -452,7 +649,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 rounded-2xl p-5 text-center cursor-pointer transition active:scale-98" onclick="document.getElementById('face-file-input').click()">
           <span class="text-3xl block mb-2">📷</span>
           <p class="text-sm font-bold text-emerald-800">แตะเพื่อถ่ายรูปด้วยกล้อง หรือเลือกรูปภาพ</p>
-          <p class="text-xs text-slate-500 mt-1">บนมือถือสามารถกดถ่ายรูปได้ทันที รองรับ JPG/PNG</p>
+          <p class="text-xs text-slate-500 mt-1">บนมือถือสามารถกดถ่ายรูปสดได้ทันที รองรับ JPG/PNG</p>
           <input type="file" id="face-file-input" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
         </div>
 
@@ -579,8 +776,27 @@ HTML_CONTENT = """<!DOCTYPE html>
   <script>
     let configData = { members: {} };
     let currentMemberId = "";
-    let serverInfo = { local_ip: "127.0.0.1", port: 8080, mobile_url: "" };
+    let serverInfo = { local_ip: "127.0.0.1", port: 8080, mobile_url: "", pi_ip: "" };
     let deferredInstallPrompt = null;
+
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(e => console.log('SW error:', e));
+      });
+    }
+
+    // Check for In-App Browser (LINE, FB, etc.)
+    function checkInAppBrowser() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+      const isLine = /Line/i.test(ua);
+      const isFB = /FBAN|FBAV|Instagram/i.test(ua);
+      const isOtherInApp = /MicroMessenger|Twitter|Snapchat/i.test(ua);
+      if (isLine || isFB || isOtherInApp) {
+        const banner = document.getElementById('inapp-warning-banner');
+        if (banner) banner.classList.remove('hidden');
+      }
+    }
 
     // Detect PWA installability on Chrome / Android
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -605,7 +821,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         const res = await fetch('/api/config');
         const data = await res.json();
         configData = { members: data.members || {} };
-        serverInfo = data.server_info || { local_ip: window.location.hostname, port: window.location.port, mobile_url: window.location.origin };
+        serverInfo = data.server_info || { local_ip: window.location.hostname, port: window.location.port, mobile_url: window.location.origin, pi_ip: "" };
 
         const memberIds = Object.keys(configData.members || {});
         if (!currentMemberId || !configData.members[currentMemberId]) {
@@ -615,6 +831,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         renderCurrentMember();
         renderSchedule();
         initMobileQr();
+        checkInAppBrowser();
+
+        const piText = document.getElementById('pi-status-text');
+        if (piText && serverInfo.pi_ip) {
+          piText.innerText = `Pi: ${serverInfo.pi_ip}`;
+        }
       } catch (err) {
         console.error("Load config failed:", err);
       }
@@ -624,11 +846,15 @@ HTML_CONTENT = """<!DOCTYPE html>
       const url = serverInfo.mobile_url || window.location.href;
       const qrImg = document.getElementById('qr-img');
       const qrText = document.getElementById('qr-url-text');
+      const inputShort = document.getElementById('shortcut-url-input');
       if (qrImg) {
         qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
       }
       if (qrText) {
         qrText.innerText = url;
+      }
+      if (inputShort) {
+        inputShort.value = url;
       }
     }
 
@@ -636,9 +862,13 @@ HTML_CONTENT = """<!DOCTYPE html>
       const url = serverInfo.mobile_url || window.location.href;
       navigator.clipboard.writeText(url).then(() => {
         const btn = document.getElementById('btn-copy-url');
-        const oldText = btn.innerHTML;
-        btn.innerHTML = "✅ คัดลอกสำเร็จ!";
-        setTimeout(() => { btn.innerHTML = oldText; }, 2000);
+        if (btn) {
+          const oldText = btn.innerHTML;
+          btn.innerHTML = "✅ คัดลอกลิงก์สำเร็จ!";
+          setTimeout(() => { btn.innerHTML = oldText; }, 2000);
+        } else {
+          alert("คัดลอกลิงก์สำเร็จ! คุณสามารถนำไปวางใน Safari หรือ Chrome ได้เลยครับ");
+        }
       });
     }
 
@@ -648,7 +878,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     function openShortcutModal() {
-      // Auto-select tab based on user agent
+      initMobileQr();
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       switchShortcutTab(isIOS ? 'ios' : 'android');
       document.getElementById('modal-shortcut').classList.remove('hidden');
@@ -670,6 +900,91 @@ HTML_CONTENT = """<!DOCTYPE html>
         tabIos.className = "flex-1 pb-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5";
         contentAndroid.classList.remove('hidden');
         contentIos.classList.add('hidden');
+      }
+    }
+
+    /* --- Wi-Fi Manager Functions --- */
+    async function openWifiModal() {
+      document.getElementById('modal-wifi').classList.remove('hidden');
+      document.getElementById('wifi-current-name').innerText = "กำลังตรวจสอบ...";
+      try {
+        const res = await fetch('/api/wifi');
+        const data = await res.json();
+        document.getElementById('wifi-current-name').innerText = data.current || "ไม่พบการเชื่อมต่อ Wi-Fi";
+      } catch (err) {
+        document.getElementById('wifi-current-name').innerText = "เชื่อมต่อล้มเหลว";
+      }
+    }
+
+    async function scanWifiNearby() {
+      const btn = document.getElementById('btn-scan-wifi');
+      const list = document.getElementById('wifi-scan-list');
+      btn.disabled = true;
+      btn.innerText = "กำลังสแกน...";
+      list.innerHTML = "<p class='py-2 text-slate-500 animate-pulse'>⏳ กำลังสแกนหาคลื่น Wi-Fi รอบๆ บอร์ด Pi...</p>";
+      try {
+        const res = await fetch('/api/wifi/scan', { method: 'POST' });
+        const data = await res.json();
+        if (data.networks && data.networks.length > 0) {
+          list.innerHTML = data.networks.map(n => `
+            <div onclick="selectScanWifi('${n.ssid}')" class="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 cursor-pointer flex items-center justify-between transition">
+              <span class="font-bold text-slate-800">${n.ssid} ${n.in_use ? '🟢 (กำลังต่อ)' : ''}</span>
+              <span class="text-[10px] text-slate-500">${n.signal}% ${n.security}</span>
+            </div>
+          `).join('');
+        } else {
+          list.innerHTML = "<p class='py-2 text-slate-400'>ไม่พบคลิ่น Wi-Fi อื่น</p>";
+        }
+      } catch (err) {
+        list.innerHTML = `<p class='py-2 text-red-500'>สแกนล้มเหลว: ${err.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "สแกนค้นหา";
+      }
+    }
+
+    function selectScanWifi(ssid) {
+      document.getElementById('new-wifi-ssid').value = ssid;
+      document.getElementById('new-wifi-pass').focus();
+    }
+
+    async function submitNewWifi() {
+      const ssid = document.getElementById('new-wifi-ssid').value.trim();
+      const pass = document.getElementById('new-wifi-pass').value.trim();
+      const btn = document.getElementById('btn-save-wifi');
+      const statusBox = document.getElementById('wifi-status-msg');
+
+      if (!ssid) {
+        alert("กรุณาระบุชื่อ Wi-Fi (SSID)");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "⏳ กำลังส่งคำสั่งบันทึกลงบอร์ด Pi...";
+      statusBox.className = "text-xs text-center p-2.5 rounded-xl font-medium bg-blue-50 text-blue-800 block";
+      statusBox.innerText = `กำลังเชื่อมต่อและบันทึก '${ssid}' เข้าบอร์ด Pi (อาจใช้เวลาประมาณ 10-15 วินาที)...`;
+
+      try {
+        const res = await fetch('/api/wifi/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: ssid, password: pass })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusBox.className = "text-xs text-center p-2.5 rounded-xl font-medium bg-emerald-100 text-emerald-800 block";
+          statusBox.innerText = `✅ สำเร็จ! บอร์ด Pi ได้เชื่อมต่อและจดจำ Wi-Fi '${ssid}' ไว้เรียบร้อยแล้ว`;
+          document.getElementById('wifi-current-name').innerText = ssid;
+        } else {
+          statusBox.className = "text-xs text-center p-2.5 rounded-xl font-medium bg-amber-100 text-amber-900 block";
+          statusBox.innerText = `⚠️ ผลการเชื่อมต่อ: ${data.message || 'บันทึกสำเร็จ (หากยังไม่ได้อยู่ในระยะสัญญาณ บอร์ดจะเชื่อมต่อเมื่อเปิดเครื่องในสถานที่นั้น)'}`;
+        }
+      } catch (err) {
+        statusBox.className = "text-xs text-center p-2.5 rounded-xl font-medium bg-red-100 text-red-800 block";
+        statusBox.innerText = `❌ ส่งคำสั่งล้มเหลว: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "💾 บันทึก Wi-Fi ใหม่ลงบอร์ด Pi";
       }
     }
 
@@ -1021,20 +1336,42 @@ class WebManagerHandler(BaseHTTPRequestHandler):
             cfg["server_info"] = {
                 "local_ip": LOCAL_IP,
                 "port": CURRENT_PORT,
-                "mobile_url": f"http://{LOCAL_IP}:{CURRENT_PORT}"
+                "mobile_url": f"http://{LOCAL_IP}:{CURRENT_PORT}",
+                "pi_ip": get_pi_ip()
             }
             self._send_json(cfg)
+        elif parsed.path == '/api/wifi':
+            current = get_current_wifi()
+            saved = list_saved_wifi()
+            self._send_json({"current": current, "saved": saved, "pi_ip": get_pi_ip()})
         elif parsed.path == '/manifest.json':
             self.send_response(200)
             self.send_header('Content-Type', 'application/manifest+json; charset=utf-8')
             self.end_headers()
             self.wfile.write(json.dumps(MANIFEST_JSON, ensure_ascii=False).encode('utf-8'))
-        elif parsed.path in ('/icon.svg', '/apple-touch-icon.png', '/favicon.ico'):
+        elif parsed.path in ('/icon-192.png', '/apple-touch-icon.png'):
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Cache-Control', 'public, max-age=86400')
+            self.end_headers()
+            self.wfile.write(PNG_ICON_192)
+        elif parsed.path == '/icon-512.png':
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Cache-Control', 'public, max-age=86400')
+            self.end_headers()
+            self.wfile.write(PNG_ICON_512)
+        elif parsed.path in ('/icon.svg', '/favicon.ico'):
             self.send_response(200)
             self.send_header('Content-Type', 'image/svg+xml; charset=utf-8')
             self.send_header('Cache-Control', 'public, max-age=86400')
             self.end_headers()
             self.wfile.write(ICON_SVG.encode('utf-8'))
+        elif parsed.path == '/sw.js':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(SW_JS.encode('utf-8'))
         else:
             self.send_response(404)
             self.end_headers()
@@ -1051,6 +1388,19 @@ class WebManagerHandler(BaseHTTPRequestHandler):
         if parsed.path == '/api/save':
             save_config(req_data)
             self._send_json({"success": True})
+
+        elif parsed.path == '/api/wifi/scan':
+            networks = scan_available_wifi()
+            self._send_json({"networks": networks})
+
+        elif parsed.path == '/api/wifi/add':
+            ssid = req_data.get('ssid', '').strip()
+            password = req_data.get('password', '').strip()
+            if not ssid:
+                self._send_json({"success": False, "message": "SSID is required"}, code=400)
+                return
+            ok, msg = add_wifi_network(ssid, password)
+            self._send_json({"success": ok, "message": msg})
 
         elif parsed.path == '/api/upload_face':
             member_id = req_data.get('member_id', 'unknown')
@@ -1076,10 +1426,11 @@ class WebManagerHandler(BaseHTTPRequestHandler):
             if not PARAMIKO_AVAILABLE:
                 self._send_json({"success": False, "error": "Paramiko not available"}, code=500)
                 return
+            pi_ip = get_pi_ip()
             try:
                 ssh = paramiko.SSHClient()
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(PI_IP, username=PI_USER, password=PI_PASS, timeout=8)
+                ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
                 ssh.exec_command("sudo systemctl stop smart-cooker.service")
                 time.sleep(0.5)
 
@@ -1131,6 +1482,7 @@ def safe_print(msg: str):
 def run_server(port=8080):
     global LOCAL_IP, CURRENT_PORT
     LOCAL_IP = get_local_ip()
+    target_pi = get_pi_ip()
     
     for p in range(port, port + 10):
         try:
@@ -1142,9 +1494,11 @@ def run_server(port=8080):
             safe_print(f" Web Management Portal is running at:")
             safe_print(f" -> On this PC:    http://localhost:{p}")
             safe_print(f" -> On your Phone: http://{LOCAL_IP}:{p}")
+            safe_print(f" -> Raspberry Pi:  {target_pi} (raspberrypi.local)")
             safe_print("=" * 70)
-            safe_print(" [Tip] On your phone, connect to the same Wi-Fi and open the URL above.")
-            safe_print("       Tap 'Shortcut' to install it to your phone home screen!")
+            safe_print(" [Tip 1] On your phone, connect to Wi-Fi and open the phone URL above.")
+            safe_print("         Tap 'Shortcut' to install it to your phone home screen!")
+            safe_print(" [Tip 2] To move to a new Wi-Fi, click 'Wi-Fi' in the top bar to add it.")
             safe_print("=" * 70)
             webbrowser.open(f"http://localhost:{p}")
             server.serve_forever()
@@ -1154,4 +1508,3 @@ def run_server(port=8080):
 
 if __name__ == "__main__":
     run_server()
-

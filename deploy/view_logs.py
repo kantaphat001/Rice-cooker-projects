@@ -16,7 +16,12 @@ except ImportError:
     print("[!] Error: paramiko is required. Run: pip install paramiko")
     sys.exit(1)
 
-PI_IP = "192.168.88.74"
+from pathlib import Path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+from smart_rice_cooker.utils import get_pi_ip
+
+PI_IP = get_pi_ip()
 PI_USER = "pi"
 PI_PASS = "1234"
 

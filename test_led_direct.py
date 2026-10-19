@@ -15,7 +15,9 @@ except ImportError:
     print("[!] Error: paramiko is required")
     sys.exit(1)
 
-PI_IP = "192.168.88.74"
+from smart_rice_cooker.utils import get_pi_ip
+
+PI_IP = get_pi_ip()
 PI_USER = "pi"
 PI_PASS = "1234"
 
