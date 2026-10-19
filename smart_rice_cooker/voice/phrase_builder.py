@@ -20,7 +20,10 @@ class ThaiPhraseBuilder:
 
         parts = [name]
         if color:
-            parts.append(str(color).strip())
+            color_str = str(color).strip()
+            if color_str.startswith("ของสี"):
+                color_str = "ซองสี" + color_str[5:]
+            parts.append(color_str)
         if dosage:
             parts.append(str(dosage).strip())
         if instructions:

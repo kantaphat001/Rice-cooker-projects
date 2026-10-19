@@ -279,10 +279,10 @@ HTML_CONTENT = """<!DOCTYPE html>
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Prompt', sans-serif;
+      font-family: 'Sarabun', 'Prompt', sans-serif;
       background-color: #f8fafc;
       -webkit-tap-highlight-color: transparent;
     }
@@ -700,38 +700,61 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">ชื่อยา (เข้าใจง่าย):</label>
-          <input type="text" id="med-name" required placeholder="เช่น ยาลดความดัน, ยาโรคกระเพาะ, ยาเบาหวาน" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+          <input type="text" id="med-name" oninput="updateLivePreview()" required placeholder="เช่น ยาลดความดัน, ยาโรคกระเพาะ, ยาเบาหวาน" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
         </div>
 
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">จำนวน / ขนาดยา:</label>
-          <input type="text" id="med-dosage" required placeholder="เช่น 1 เม็ด, 2 เม็ด, 1 ช้อนชา" value="1 เม็ด" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+          <input type="text" id="med-dosage" oninput="updateLivePreview()" required placeholder="เช่น 1 เม็ด, 2 เม็ด, 1 ช้อนชา" value="1 เม็ด" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
         </div>
 
         <!-- Color Tag Quick Selector (Touch Optimized) -->
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">สีของซองยา / ช่องเก็บยา (คนแก่ดูง่าย):</label>
-          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
-            <button type="button" onclick="selectColorTag('ซองสีเขียว')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-800 border-green-300 active:scale-95">
-              <span>🟢</span><span>สีเขียว</span>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2.5">
+            <button type="button" data-colortag="ซองสีชมพู" onclick="selectColorTag('ซองสีชมพู')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🌸</span><span>ซองสีชมพู</span>
             </button>
-            <button type="button" onclick="selectColorTag('ซองสีฟ้า')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300 active:scale-95">
-              <span>🔵</span><span>สีฟ้า</span>
+            <button type="button" data-colortag="ซองสีเขียว" onclick="selectColorTag('ซองสีเขียว')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🟢</span><span>ซองสีเขียว</span>
             </button>
-            <button type="button" onclick="selectColorTag('ซองสีชมพู')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300 active:scale-95">
-              <span>🌸</span><span>สีชมพู</span>
+            <button type="button" data-colortag="ซองสีฟ้า" onclick="selectColorTag('ซองสีฟ้า')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🔵</span><span>ซองสีฟ้า</span>
             </button>
-            <button type="button" onclick="selectColorTag('ซองสีเหลือง')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border-yellow-300 active:scale-95">
-              <span>🟡</span><span>สีเหลือง</span>
+            <button type="button" data-colortag="ซองสีเหลือง" onclick="selectColorTag('ซองสีเหลือง')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🟡</span><span>ซองสีเหลือง</span>
             </button>
-            <button type="button" onclick="selectColorTag('ซองสีส้ม')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-orange-50 hover:bg-orange-100 text-orange-800 border-orange-300 active:scale-95">
-              <span>🟠</span><span>สีส้ม</span>
+            <button type="button" data-colortag="ซองสีส้ม" onclick="selectColorTag('ซองสีส้ม')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-orange-50 hover:bg-orange-100 text-orange-800 border-orange-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🟠</span><span>ซองสีส้ม</span>
             </button>
-            <button type="button" onclick="selectColorTag('ช่องที่ 1')" class="py-2 px-2 text-xs rounded-xl font-medium border text-center transition flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300 active:scale-95">
-              <span>📦</span><span>ช่องที่ 1</span>
+            <button type="button" data-colortag="ซองสีแดง" onclick="selectColorTag('ซองสีแดง')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🔴</span><span>ซองสีแดง</span>
+            </button>
+            <button type="button" data-colortag="ซองสีม่วง" onclick="selectColorTag('ซองสีม่วง')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-300 active:scale-95 shadow-2xs">
+              <span class="text-base">🟣</span><span>ซองสีม่วง</span>
+            </button>
+            <button type="button" data-colortag="ช่องที่ 1" onclick="selectColorTag('ช่องที่ 1')" class="color-tag-btn py-2.5 px-2 text-xs rounded-xl font-bold border text-center transition flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-300 active:scale-95 shadow-2xs">
+              <span class="text-base">📦</span><span>ช่องที่ 1</span>
             </button>
           </div>
-          <input type="text" id="med-color-tag" placeholder="หรือพิมพ์ระบุสีเอง เช่น ซองสีเขียว, ช่องสีแดง" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+          <input type="text" id="med-color-tag" oninput="onColorTagInput()" placeholder="หรือพิมพ์ระบุสีเอง เช่น ซองสีชมพู, ซองสีเขียว, ช่องสีแดง" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm min-h-[44px]">
+        </div>
+
+        <!-- Live Color Preview Box in Modal -->
+        <div class="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 transition">
+          <div class="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1">
+            <span>👁️</span> ตัวอย่างการแสดงผลบนหน้าจอ (สีกรอบจะตรงกับสีซอง):
+          </div>
+          <div id="med-preview-card" class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white transition shadow-xs gap-3">
+            <div class="space-y-0.5 min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span id="med-preview-name" class="font-bold text-slate-800 text-sm break-words">ชื่อยาตัวอย่าง</span>
+                <span id="med-preview-tag" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-lg border font-sarabun">🏷️ ซองยา</span>
+              </div>
+              <div id="med-preview-dosage" class="text-xs text-slate-500">ขนาดรับประทาน: 1 เม็ด</div>
+            </div>
+            <span class="text-base opacity-40">🗑️</span>
+          </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
@@ -1132,16 +1155,195 @@ HTML_CONTENT = """<!DOCTYPE html>
       }).join('');
     }
 
+    function getColorTheme(tag, name = '') {
+      let cleanTag = (tag || '').trim();
+      // Auto normalize "ของสี..." typo to "ซองสี..."
+      if (cleanTag.startsWith('ของสี')) {
+        cleanTag = 'ซองสี' + cleanTag.substring(5);
+      }
+      const combined = (cleanTag + ' ' + (name || '')).toLowerCase();
+
+      if (combined.includes('ชมพู')) {
+        return {
+          key: 'pink',
+          label: cleanTag || 'ซองสีชมพู',
+          icon: '🌸',
+          badgeBg: 'bg-pink-100',
+          badgeText: 'text-pink-800',
+          badgeBorder: 'border-pink-300',
+          cardBorder: 'border-pink-400',
+          cardBg: 'bg-pink-50/40',
+          cardHover: 'hover:bg-pink-50/70 hover:border-pink-500',
+          cardAccent: 'border-l-[6px] border-l-pink-500',
+        };
+      }
+      if (combined.includes('เขียว')) {
+        return {
+          key: 'green',
+          label: cleanTag || 'ซองสีเขียว',
+          icon: '🟢',
+          badgeBg: 'bg-emerald-100',
+          badgeText: 'text-emerald-800',
+          badgeBorder: 'border-emerald-300',
+          cardBorder: 'border-emerald-400',
+          cardBg: 'bg-emerald-50/40',
+          cardHover: 'hover:bg-emerald-50/70 hover:border-emerald-500',
+          cardAccent: 'border-l-[6px] border-l-emerald-500',
+        };
+      }
+      if (combined.includes('ฟ้า') || combined.includes('น้ำเงิน')) {
+        return {
+          key: 'blue',
+          label: cleanTag || 'ซองสีฟ้า',
+          icon: '🔵',
+          badgeBg: 'bg-sky-100',
+          badgeText: 'text-sky-800',
+          badgeBorder: 'border-sky-300',
+          cardBorder: 'border-sky-400',
+          cardBg: 'bg-sky-50/40',
+          cardHover: 'hover:bg-sky-50/70 hover:border-sky-500',
+          cardAccent: 'border-l-[6px] border-l-sky-500',
+        };
+      }
+      if (combined.includes('เหลือง')) {
+        return {
+          key: 'yellow',
+          label: cleanTag || 'ซองสีเหลือง',
+          icon: '🟡',
+          badgeBg: 'bg-amber-100',
+          badgeText: 'text-amber-800',
+          badgeBorder: 'border-amber-300',
+          cardBorder: 'border-amber-400',
+          cardBg: 'bg-amber-50/40',
+          cardHover: 'hover:bg-amber-50/70 hover:border-amber-500',
+          cardAccent: 'border-l-[6px] border-l-amber-500',
+        };
+      }
+      if (combined.includes('ส้ม')) {
+        return {
+          key: 'orange',
+          label: cleanTag || 'ซองสีส้ม',
+          icon: '🟠',
+          badgeBg: 'bg-orange-100',
+          badgeText: 'text-orange-800',
+          badgeBorder: 'border-orange-300',
+          cardBorder: 'border-orange-400',
+          cardBg: 'bg-orange-50/40',
+          cardHover: 'hover:bg-orange-50/70 hover:border-orange-500',
+          cardAccent: 'border-l-[6px] border-l-orange-500',
+        };
+      }
+      if (combined.includes('แดง')) {
+        return {
+          key: 'red',
+          label: cleanTag || 'ซองสีแดง',
+          icon: '🔴',
+          badgeBg: 'bg-rose-100',
+          badgeText: 'text-rose-800',
+          badgeBorder: 'border-rose-300',
+          cardBorder: 'border-rose-400',
+          cardBg: 'bg-rose-50/40',
+          cardHover: 'hover:bg-rose-50/70 hover:border-rose-500',
+          cardAccent: 'border-l-[6px] border-l-rose-500',
+        };
+      }
+      if (combined.includes('ม่วง')) {
+        return {
+          key: 'purple',
+          label: cleanTag || 'ซองสีม่วง',
+          icon: '🟣',
+          badgeBg: 'bg-purple-100',
+          badgeText: 'text-purple-800',
+          badgeBorder: 'border-purple-300',
+          cardBorder: 'border-purple-400',
+          cardBg: 'bg-purple-50/40',
+          cardHover: 'hover:bg-purple-50/70 hover:border-purple-500',
+          cardAccent: 'border-l-[6px] border-l-purple-500',
+        };
+      }
+      if (combined.includes('ขาว')) {
+        return {
+          key: 'white',
+          label: cleanTag || 'ซองสีขาว',
+          icon: '⚪',
+          badgeBg: 'bg-slate-100',
+          badgeText: 'text-slate-800',
+          badgeBorder: 'border-slate-300',
+          cardBorder: 'border-slate-300',
+          cardBg: 'bg-slate-50/50',
+          cardHover: 'hover:bg-slate-100 hover:border-slate-400',
+          cardAccent: 'border-l-[6px] border-l-slate-400',
+        };
+      }
+      if (combined.includes('ช่อง') || combined.includes('ตลับ') || combined.includes('กล่อง')) {
+        return {
+          key: 'box',
+          label: cleanTag || 'ช่องเก็บยา',
+          icon: '📦',
+          badgeBg: 'bg-indigo-100',
+          badgeText: 'text-indigo-800',
+          badgeBorder: 'border-indigo-300',
+          cardBorder: 'border-indigo-400',
+          cardBg: 'bg-indigo-50/40',
+          cardHover: 'hover:bg-indigo-50/70 hover:border-indigo-500',
+          cardAccent: 'border-l-[6px] border-l-indigo-500',
+        };
+      }
+      if (cleanTag) {
+        return {
+          key: 'custom',
+          label: cleanTag,
+          icon: '🏷️',
+          badgeBg: 'bg-emerald-100',
+          badgeText: 'text-emerald-800',
+          badgeBorder: 'border-emerald-300',
+          cardBorder: 'border-emerald-400',
+          cardBg: 'bg-emerald-50/30',
+          cardHover: 'hover:bg-emerald-50/60 hover:border-emerald-500',
+          cardAccent: 'border-l-[6px] border-l-emerald-500',
+        };
+      }
+      return {
+        key: 'none',
+        label: '',
+        icon: '',
+        badgeBg: '',
+        badgeText: '',
+        badgeBorder: '',
+        cardBorder: 'border-slate-200',
+        cardBg: 'bg-white',
+        cardHover: 'hover:bg-slate-50',
+        cardAccent: '',
+      };
+    }
+
     function renderMedCard(med, slotKey, timing, idx) {
-      const colorTag = med.color_tag ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">🏷️ ${med.color_tag}</span>` : '';
+      let rawTag = med.color_tag || '';
+      if (rawTag.startsWith('ของสี')) {
+        rawTag = 'ซองสี' + rawTag.substring(5);
+      }
+      const theme = getColorTheme(rawTag, med.name);
+      const hasColor = theme.key !== 'none';
+
+      const colorTagBadge = hasColor ? `
+        <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-lg ${theme.badgeBg} ${theme.badgeText} border ${theme.badgeBorder} shadow-2xs font-sarabun">
+          <span>${theme.icon}</span>
+          <span>${rawTag || theme.label}</span>
+        </span>
+      ` : '';
+
+      const cardClasses = hasColor
+        ? `border-2 ${theme.cardBorder} ${theme.cardBg} ${theme.cardHover} ${theme.cardAccent} shadow-xs`
+        : `border border-slate-200 bg-white hover:bg-slate-50 shadow-xs`;
+
       return `
-        <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition shadow-xs gap-3">
+        <div class="flex items-center justify-between p-3.5 rounded-xl ${cardClasses} transition gap-3">
           <div class="space-y-1 min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-1.5">
-              <span class="font-bold text-slate-800 text-sm sm:text-base break-words">${med.name}</span>
-              ${colorTag}
+              <span class="font-bold text-slate-800 text-sm sm:text-base break-words font-sarabun">${med.name}</span>
+              ${colorTagBadge}
             </div>
-            <div class="text-xs text-slate-500">ขนาดรับประทาน: <span class="font-bold text-slate-700">${med.dosage}</span></div>
+            <div class="text-xs text-slate-600 font-sarabun">ขนาดรับประทาน: <span class="font-bold text-slate-800">${med.dosage}</span></div>
           </div>
           <button onclick="deleteMed('${slotKey}', '${timing}', ${idx})" title="ลบยานี้" class="w-10 h-10 shrink-0 rounded-xl bg-red-50 hover:bg-red-100 active:scale-90 text-red-600 flex items-center justify-center transition border border-red-200">
             <span class="text-base">🗑️</span>
@@ -1151,7 +1353,67 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     function selectColorTag(tag) {
-      document.getElementById('med-color-tag').value = tag;
+      const input = document.getElementById('med-color-tag');
+      if (input.value === tag) {
+        input.value = '';
+      } else {
+        input.value = tag;
+      }
+      updateColorSelectorButtons();
+      updateLivePreview();
+    }
+
+    function onColorTagInput() {
+      const input = document.getElementById('med-color-tag');
+      if (input.value.startsWith('ของสี')) {
+        input.value = 'ซองสี' + input.value.substring(5);
+      }
+      updateColorSelectorButtons();
+      updateLivePreview();
+    }
+
+    function updateColorSelectorButtons() {
+      const val = (document.getElementById('med-color-tag').value || '').trim();
+      document.querySelectorAll('.color-tag-btn').forEach(btn => {
+        const btnTag = btn.getAttribute('data-colortag');
+        if (val && (val === btnTag || (btnTag.includes('ชมพู') && val.includes('ชมพู')) || (btnTag.includes('เขียว') && val.includes('เขียว')) || (btnTag.includes('ฟ้า') && val.includes('ฟ้า')) || (btnTag.includes('เหลือง') && val.includes('เหลือง')) || (btnTag.includes('ส้ม') && val.includes('ส้ม')) || (btnTag.includes('แดง') && val.includes('แดง')) || (btnTag.includes('ม่วง') && val.includes('ม่วง')))) {
+          btn.classList.add('ring-2', 'ring-offset-1', 'ring-slate-800', 'font-black', 'scale-105');
+        } else {
+          btn.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-800', 'font-black', 'scale-105');
+        }
+      });
+    }
+
+    function updateLivePreview() {
+      const nameInput = document.getElementById('med-name').value.trim() || 'ชื่อยาตัวอย่าง';
+      const dosageInput = document.getElementById('med-dosage').value.trim() || '1 เม็ด';
+      let tagVal = (document.getElementById('med-color-tag').value || '').trim();
+      if (tagVal.startsWith('ของสี')) {
+        tagVal = 'ซองสี' + tagVal.substring(5);
+      }
+
+      const previewCard = document.getElementById('med-preview-card');
+      const previewName = document.getElementById('med-preview-name');
+      const previewDosage = document.getElementById('med-preview-dosage');
+      const previewTag = document.getElementById('med-preview-tag');
+
+      if (!previewCard || !previewName || !previewDosage || !previewTag) return;
+
+      previewName.textContent = nameInput;
+      previewDosage.textContent = 'ขนาดรับประทาน: ' + dosageInput;
+
+      const theme = getColorTheme(tagVal, nameInput);
+      const hasColor = theme.key !== 'none';
+
+      if (hasColor) {
+        previewCard.className = `flex items-center justify-between p-3 rounded-xl transition shadow-xs gap-3 border-2 ${theme.cardBorder} ${theme.cardBg} ${theme.cardAccent}`;
+        previewTag.className = `text-[11px] font-bold px-2 py-0.5 rounded-lg border font-sarabun ${theme.badgeBg} ${theme.badgeText} ${theme.badgeBorder}`;
+        previewTag.innerHTML = `<span>${theme.icon}</span> <span>${tagVal || theme.label}</span>`;
+        previewTag.classList.remove('hidden');
+      } else {
+        previewCard.className = 'flex items-center justify-between p-3 rounded-xl transition shadow-xs gap-3 border border-slate-200 bg-white';
+        previewTag.classList.add('hidden');
+      }
     }
 
     function openAddMedModal(slotKey) {
@@ -1161,6 +1423,8 @@ HTML_CONTENT = """<!DOCTYPE html>
       document.getElementById('med-name').value = '';
       document.getElementById('med-dosage').value = '1 เม็ด';
       document.getElementById('med-color-tag').value = '';
+      updateColorSelectorButtons();
+      updateLivePreview();
       document.getElementById('modal-med').classList.remove('hidden');
     }
 
@@ -1174,7 +1438,10 @@ HTML_CONTENT = """<!DOCTYPE html>
       const timing = document.getElementById('med-timing-select').value;
       const name = document.getElementById('med-name').value.trim();
       const dosage = document.getElementById('med-dosage').value.trim();
-      const colorTag = document.getElementById('med-color-tag').value.trim();
+      let colorTag = document.getElementById('med-color-tag').value.trim();
+      if (colorTag.startsWith('ของสี')) {
+        colorTag = 'ซองสี' + colorTag.substring(5);
+      }
 
       const newMed = { name, dosage };
       if (colorTag) newMed.color_tag = colorTag;
