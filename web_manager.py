@@ -29,6 +29,7 @@ import math
 import webbrowser
 import threading
 from pathlib import Path
+from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -96,6 +97,86 @@ def _sync_config_to_pi():
         print(f"[+] Synced med_config.json to Raspberry Pi ({pi_ip})")
     except Exception as e:
         print(f"[!] Failed to sync config to Pi ({pi_ip}): {e}")
+
+def get_member_faces(member_id: str):
+    """Returns sorted list of registered face photos for a member."""
+    if not member_id:
+        return []
+    matched_dir = DATASET_DIR / member_id
+    if not matched_dir.exists():
+        for d in DATASET_DIR.iterdir():
+            if d.is_dir() and d.name.lower() == member_id.lower():
+                matched_dir = d
+                break
+    if not matched_dir.exists():
+        return []
+
+    files = [f for f in matched_dir.iterdir() if f.suffix.lower() in ('.jpg', '.jpeg', '.png')]
+    files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+
+    thai_months = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+    result = []
+    for f in files:
+        dt = datetime.fromtimestamp(f.stat().st_mtime)
+        time_str = f"{dt.day} {thai_months[dt.month]} {dt.hour:02d}:{dt.minute:02d} น."
+        result.append({
+            'filename': f.name,
+            'url': f'/dataset/{matched_dir.name}/{f.name}',
+            'size_kb': round(f.stat().st_size / 1024, 1),
+            'time_str': time_str
+        })
+    return result
+
+def get_face_summary():
+    """Returns photo count and latest avatar url for all members."""
+    summary = {}
+    cfg = load_config()
+    for mem_id in cfg.get('members', {}).keys():
+        faces = get_member_faces(mem_id)
+        summary[mem_id] = {
+            'count': len(faces),
+            'latest_url': faces[0]['url'] if faces else None
+        }
+    return summary
+
+def delete_member_face(member_id: str, filename: str):
+    """Deletes face photo locally and on Pi, then triggers AI rebuild."""
+    matched_dir = DATASET_DIR / member_id
+    if not matched_dir.exists():
+        for d in DATASET_DIR.iterdir():
+            if d.is_dir() and d.name.lower() == member_id.lower():
+                matched_dir = d
+                break
+    if matched_dir.exists():
+        local_file = matched_dir / filename
+        if local_file.is_file():
+            try:
+                local_file.unlink()
+                print(f"[+] Deleted local face: {local_file}")
+            except Exception as e:
+                print(f"[!] Error deleting local face: {e}")
+
+    def _remote_del():
+        if not PARAMIKO_AVAILABLE:
+            return
+        pi_ip = get_pi_ip()
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
+            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id}/{filename}")
+            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id.lower()}/{filename}")
+            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id.capitalize()}/{filename}")
+            ssh.exec_command("sudo systemctl stop smart-cooker.service")
+            ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
+            ssh.exec_command("sudo systemctl start smart-cooker.service")
+            ssh.close()
+            print(f"[+] Deleted {member_id}/{filename} on Pi and rebuilt AI database")
+        except Exception as e:
+            print(f"[!] Error deleting remote face on Pi: {e}")
+
+    threading.Thread(target=_remote_del, daemon=True).start()
+    return True
 
 def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path):
     if not PARAMIKO_AVAILABLE:
@@ -630,40 +711,82 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Modal: Add / Upload Face -->
+  <!-- Modal: Face Management (Gallery & Add) -->
   <div id="modal-face" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-800 max-h-[90vh] overflow-y-auto safe-pb">
-      <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden"></div>
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-bold flex items-center gap-2">
-          <span>📸</span> เพิ่มรูปใบหน้าสมาชิก
-        </h3>
+    <div class="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-800 max-h-[92vh] flex flex-col safe-pb">
+      <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 sm:hidden shrink-0"></div>
+      
+      <!-- Modal Header -->
+      <div class="flex justify-between items-center mb-3 shrink-0">
+        <div>
+          <h3 class="text-lg font-bold flex items-center gap-2">
+            <span>👤</span> ใบหน้า AI: <span id="modal-face-name" class="text-emerald-700 font-extrabold"></span>
+          </h3>
+          <p class="text-xs text-slate-500">ตรวจสอบรูปภาพและจัดการใบหน้าที่ระบบใช้จดจำ</p>
+        </div>
         <button onclick="closeModal('modal-face')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg leading-none">&times;</button>
       </div>
 
-      <p class="text-xs sm:text-sm text-slate-600 mb-4">
-        เพิ่มรูปหน้าสำหรับ <strong id="modal-face-name" class="text-emerald-700 font-semibold"></strong> 
-        (ระบบจะสกัดเวกเตอร์ AI YuNet + SFace ทันที เพื่อให้กล่องจำหน้าได้)
-      </p>
+      <!-- Tab Switcher -->
+      <div class="flex border-b border-slate-200 mb-4 shrink-0">
+        <button id="face-tab-gallery" onclick="switchFaceTab('gallery')" class="flex-1 pb-2.5 text-sm font-bold border-b-2 border-emerald-600 text-emerald-700 transition flex items-center justify-center gap-1.5">
+          <span>🖼️</span> ดูรูปที่บันทึกไว้ (<span id="face-tab-count">0</span>)
+        </button>
+        <button id="face-tab-add" onclick="switchFaceTab('add')" class="flex-1 pb-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5">
+          <span>➕</span> เพิ่มรูปถ่ายใหม่
+        </button>
+      </div>
 
-      <div class="space-y-3.5">
+      <!-- Tab 1: Gallery -->
+      <div id="face-view-gallery" class="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1">
+        <div id="face-gallery-loading" class="text-center py-12 text-slate-400 text-sm">
+          ⏳ กำลังโหลดรูปภาพใบหน้า...
+        </div>
+        <div id="face-gallery-empty" class="hidden text-center py-12">
+          <span class="text-5xl block mb-2 opacity-60">📷</span>
+          <p class="text-base font-bold text-slate-700">ยังไม่มีรูปถ่ายใบหน้าของสมาชิกนี้</p>
+          <p class="text-xs text-slate-500 mt-1 mb-4">ถ่ายรูปสดหรืออัปโหลดภาพใบหน้าเพื่อให้กล่องหม้อหุงข้าวเริ่มจำหน้าได้</p>
+          <button onclick="switchFaceTab('add')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition shadow-xs">
+            ➕ เพิ่มรูปถ่ายทันที
+          </button>
+        </div>
+        <div id="face-gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Add New Photo -->
+      <div id="face-view-add" class="hidden space-y-3.5 overflow-y-auto flex-1 min-h-0 pr-1">
+        <p class="text-xs text-slate-600">
+          💡 <strong>เคล็ดลับ:</strong> ควรถ่ายหน้าตรง ไม่สวมแว่นตาดำหรือแมสก์ ในระยะห่างประมาณ 40-70 เซนติเมตร
+        </p>
+
         <!-- Option 1: File / Camera Upload -->
-        <div class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 rounded-2xl p-5 text-center cursor-pointer transition active:scale-98" onclick="document.getElementById('face-file-input').click()">
-          <span class="text-3xl block mb-2">📷</span>
-          <p class="text-sm font-bold text-emerald-800">แตะเพื่อถ่ายรูปด้วยกล้อง หรือเลือกรูปภาพ</p>
-          <p class="text-xs text-slate-500 mt-1">บนมือถือสามารถกดถ่ายรูปสดได้ทันที รองรับ JPG/PNG</p>
+        <div class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 rounded-2xl p-6 text-center cursor-pointer transition active:scale-98" onclick="document.getElementById('face-file-input').click()">
+          <span class="text-4xl block mb-2">📷</span>
+          <p class="text-sm font-bold text-emerald-800">แตะเพื่อถ่ายรูปด้วยกล้องมือถือ หรือเลือกรูปภาพ</p>
+          <p class="text-xs text-slate-500 mt-1">บนมือถือสามารถกดเปิดกล้องสดถ่ายหน้าคุณตาคุณยายได้ทันที</p>
           <input type="file" id="face-file-input" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
         </div>
 
         <div class="text-center text-xs text-slate-400 font-semibold uppercase tracking-wider">— หรือ —</div>
 
         <!-- Option 2: Live Pi Camera Snapshot -->
-        <button onclick="capturePiCamera()" id="btn-snap-pi" class="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-medium rounded-xl transition text-sm min-h-[44px]">
+        <button onclick="capturePiCamera()" id="btn-snap-pi" class="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-xl transition text-sm min-h-[44px]">
           <span>🤖</span> สั่งกล้องหม้อหุงข้าวถ่ายรูปตอนนี้ (Pi Camera)
         </button>
 
         <div id="upload-status" class="hidden text-xs text-center p-3 rounded-xl bg-emerald-100 text-emerald-800 font-medium leading-relaxed"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal for Full-Size Image Preview -->
+  <div id="modal-lightbox" class="fixed inset-0 bg-black/90 backdrop-blur-md z-60 hidden flex flex-col items-center justify-center p-4" onclick="closeLightbox()">
+    <div class="relative max-w-xl w-full max-h-[90vh] flex flex-col items-center" onclick="event.stopPropagation()">
+      <button onclick="closeLightbox()" class="absolute -top-10 right-0 text-white text-3xl font-bold hover:text-slate-300 p-2 leading-none cursor-pointer">&times;</button>
+      <img id="lightbox-img" src="" alt="Face Preview" class="max-w-full max-h-[75vh] rounded-2xl object-contain shadow-2xl border border-white/20">
+      <div id="lightbox-caption" class="text-center text-white text-xs mt-3 bg-black/60 px-4 py-1.5 rounded-full backdrop-blur-xs font-mono"></div>
     </div>
   </div>
 
@@ -803,6 +926,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     let configData = { members: {} };
     let currentMemberId = "";
     let serverInfo = { local_ip: "127.0.0.1", port: 8080, mobile_url: "", pi_ip: "" };
+    let faceSummary = {};
     let deferredInstallPrompt = null;
 
     // Fast-boot from embedded data (0ms latency, zero spinner)
@@ -810,6 +934,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       try {
         configData = { members: window.EMBEDDED_DATA.config?.members || {} };
         serverInfo = window.EMBEDDED_DATA.server_info || {};
+        faceSummary = window.EMBEDDED_DATA.face_summary || {};
         currentMemberId = Object.keys(configData.members || {})[0] || "";
         renderMemberChips();
         renderCurrentMember();
@@ -1071,25 +1196,40 @@ HTML_CONTENT = """<!DOCTYPE html>
         return;
       }
       const mem = configData.members[currentMemberId];
+      const faceInfo = (faceSummary && faceSummary[currentMemberId]) ? faceSummary[currentMemberId] : { count: 0, latest_url: null };
+      const faceCount = faceInfo.count || 0;
+
+      const avatarHtml = faceInfo.latest_url ? `
+        <div class="relative group cursor-pointer shrink-0" onclick="openFaceModal('${currentMemberId}', '${mem.display_name}', 'gallery')" title="คลิกเพื่อดูรูปใบหน้าทั้งหมด">
+          <img src="${faceInfo.latest_url}" alt="${mem.display_name}" class="w-12 h-12 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs hover:opacity-90 transition">
+          <span class="absolute -bottom-1 -right-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full border border-white shadow-2xs">${faceCount}</span>
+        </div>
+      ` : `
+        <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xl border-2 border-emerald-500 shrink-0 shadow-xs cursor-pointer hover:bg-emerald-200 transition" onclick="openFaceModal('${currentMemberId}', '${mem.display_name}', 'add')" title="คลิกเพื่อเพิ่มรูปถ่าย">
+          ${mem.display_name ? mem.display_name[0] : '👤'}
+        </div>
+      `;
+
       card.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xl border-2 border-emerald-500 shrink-0 shadow-xs">
-            ${mem.display_name ? mem.display_name[0] : '👤'}
-          </div>
+          ${avatarHtml}
           <div class="min-w-0">
             <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2 truncate">
-              <span>${mem.display_name}</span>
+              <span class="font-sarabun">${mem.display_name}</span>
               <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-mono">${currentMemberId}</span>
             </h2>
-            <p class="text-xs text-slate-500 truncate">คำทักทาย: "${mem.voice_greeting || 'สวัสดีค่ะ'}"</p>
+            <p class="text-xs text-slate-500 truncate font-sarabun">คำทักทาย: "${mem.voice_greeting || 'สวัสดีค่ะ'}"</p>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 pt-1 sm:pt-0">
-          <button onclick="openFaceModal('${currentMemberId}', '${mem.display_name}')" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition active:scale-95 min-h-[40px]">
-            <span>📸</span> เพิ่ม/เปลี่ยนรูปหน้า AI
+          <button onclick="openFaceModal('${currentMemberId}', '${mem.display_name}', 'gallery')" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition active:scale-95 min-h-[40px] shadow-2xs">
+            <span>🖼️</span> ดูรูปหน้า AI (${faceCount})
           </button>
-          <button onclick="deleteMember('${currentMemberId}')" class="inline-flex items-center justify-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-semibold transition active:scale-95 min-h-[40px]">
-            <span>🗑️</span> <span class="hidden sm:inline">ลบสมาชิกนี้</span>
+          <button onclick="openFaceModal('${currentMemberId}', '${mem.display_name}', 'add')" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition active:scale-95 min-h-[40px] shadow-2xs">
+            <span>➕</span> เพิ่มรูป
+          </button>
+          <button onclick="deleteMember('${currentMemberId}')" title="ลบสมาชิก" class="inline-flex items-center justify-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-semibold transition active:scale-95 min-h-[40px]">
+            <span>🗑️</span>
           </button>
         </div>
       `;
@@ -1511,10 +1651,118 @@ HTML_CONTENT = """<!DOCTYPE html>
       renderSchedule();
     }
 
-    function openFaceModal(id, name) {
-      document.getElementById('modal-face-name').innerText = name || id;
+    let currentFaceList = [];
+
+    function openFaceModal(id, name, defaultTab = 'gallery') {
+      const targetId = id || currentMemberId;
+      const targetName = name || (configData.members[targetId]?.display_name || targetId);
+      document.getElementById('modal-face-name').innerText = targetName;
       document.getElementById('upload-status').classList.add('hidden');
+      switchFaceTab(defaultTab);
+      loadMemberFaces(targetId);
       document.getElementById('modal-face').classList.remove('hidden');
+    }
+
+    function switchFaceTab(tab) {
+      const tabGallery = document.getElementById('face-tab-gallery');
+      const tabAdd = document.getElementById('face-tab-add');
+      const viewGallery = document.getElementById('face-view-gallery');
+      const viewAdd = document.getElementById('face-view-add');
+
+      if (tab === 'gallery') {
+        tabGallery.className = "flex-1 pb-2.5 text-sm font-bold border-b-2 border-emerald-600 text-emerald-700 transition flex items-center justify-center gap-1.5";
+        tabAdd.className = "flex-1 pb-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5";
+        viewGallery.classList.remove('hidden');
+        viewAdd.classList.add('hidden');
+      } else {
+        tabAdd.className = "flex-1 pb-2.5 text-sm font-bold border-b-2 border-emerald-600 text-emerald-700 transition flex items-center justify-center gap-1.5";
+        tabGallery.className = "flex-1 pb-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5";
+        viewAdd.classList.remove('hidden');
+        viewGallery.classList.add('hidden');
+      }
+    }
+
+    async function loadMemberFaces(memberId) {
+      const loadingEl = document.getElementById('face-gallery-loading');
+      const emptyEl = document.getElementById('face-gallery-empty');
+      const gridEl = document.getElementById('face-gallery-grid');
+      const countEl = document.getElementById('face-tab-count');
+
+      loadingEl.classList.remove('hidden');
+      emptyEl.classList.add('hidden');
+      gridEl.innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/member_faces?member_id=${encodeURIComponent(memberId)}`);
+        const data = await res.json();
+        loadingEl.classList.add('hidden');
+
+        if (data.success && data.photos && data.photos.length > 0) {
+          currentFaceList = data.photos;
+          countEl.innerText = data.photos.length;
+          if (!faceSummary) faceSummary = {};
+          faceSummary[memberId] = {
+            count: data.photos.length,
+            latest_url: data.photos[0].url
+          };
+          renderCurrentMember();
+
+          gridEl.innerHTML = data.photos.map(p => `
+            <div class="group relative bg-slate-50 border border-slate-200 hover:border-emerald-400 rounded-2xl p-2 transition shadow-2xs flex flex-col justify-between">
+              <div class="relative overflow-hidden rounded-xl aspect-square bg-slate-200 cursor-pointer" onclick="openLightbox('${p.url}', '${p.time_str}')">
+                <img src="${p.url}" alt="${p.filename}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                  <span>🔍</span> ขยาย
+                </div>
+              </div>
+              <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500 px-0.5">
+                <span class="truncate font-mono">${p.time_str || p.filename}</span>
+                <button onclick="deleteFace('${memberId}', '${p.filename}')" title="ลบรูปนี้" class="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition shrink-0 active:scale-90 border border-red-200">
+                  <span class="text-xs">🗑️</span>
+                </button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          currentFaceList = [];
+          countEl.innerText = 0;
+          if (!faceSummary) faceSummary = {};
+          faceSummary[memberId] = { count: 0, latest_url: null };
+          renderCurrentMember();
+          emptyEl.classList.remove('hidden');
+        }
+      } catch (err) {
+        loadingEl.innerText = `❌ ไม่สามารถโหลดรูปภาพได้: ${err.message}`;
+      }
+    }
+
+    async function deleteFace(memberId, filename) {
+      if (!confirm("คุณต้องการลบรูปใบหน้านี้ใช่หรือไม่?\n(ระบบจะอัปเดตโมเดล AI บน Pi ให้ทันที)")) return;
+      try {
+        const res = await fetch('/api/delete_face', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_id: memberId, filename: filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadMemberFaces(memberId);
+        } else {
+          alert(`เกิดข้อผิดพลาด: ${data.error || 'ไม่สามารถลบรูปได้'}`);
+        }
+      } catch (err) {
+        alert(`เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`);
+      }
+    }
+
+    function openLightbox(url, caption = '') {
+      document.getElementById('lightbox-img').src = url;
+      document.getElementById('lightbox-caption').innerText = caption || '';
+      document.getElementById('modal-lightbox').classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      document.getElementById('modal-lightbox').classList.add('hidden');
     }
 
     async function handleFileUpload(e) {
@@ -1540,7 +1788,8 @@ HTML_CONTENT = """<!DOCTYPE html>
           const result = await res.json();
           if (result.success) {
             statusBox.innerHTML = "✅ เพิ่มรูปใบหน้าและอัปเดตโมเดล AI บน Pi สำเร็จเรียบร้อย!";
-            setTimeout(() => closeModal('modal-face'), 1500);
+            await loadMemberFaces(currentMemberId);
+            setTimeout(() => switchFaceTab('gallery'), 1200);
           } else {
             statusBox.innerHTML = `❌ เกิดข้อผิดพลาด: ${result.error}`;
           }
@@ -1569,7 +1818,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         const result = await res.json();
         if (result.success) {
           statusBox.innerHTML = "✅ บันทึกภาพจากกล้อง Pi และอัปเดตโมเดลเรียบร้อย!";
-          setTimeout(() => closeModal('modal-face'), 1500);
+          await loadMemberFaces(currentMemberId);
+          setTimeout(() => switchFaceTab('gallery'), 1200);
         } else {
           statusBox.innerHTML = `❌ ถ่ายภาพล้มเหลว: ${result.error}`;
         }
@@ -1631,7 +1881,8 @@ class WebManagerHandler(BaseHTTPRequestHandler):
                 "mobile_url": f"http://{LOCAL_IP}:{CURRENT_PORT}",
                 "pi_ip": target_pi
             }
-            embedded_data = json.dumps({"config": cfg, "server_info": server_info}, ensure_ascii=False)
+            face_summary = get_face_summary()
+            embedded_data = json.dumps({"config": cfg, "server_info": server_info, "face_summary": face_summary}, ensure_ascii=False)
             html = HTML_CONTENT.replace('/*__EMBEDDED_DATA__*/', f'window.EMBEDDED_DATA = {embedded_data};')
             self._send_bytes(html.encode('utf-8'), 'text/html; charset=utf-8')
 
@@ -1643,7 +1894,36 @@ class WebManagerHandler(BaseHTTPRequestHandler):
                 "mobile_url": f"http://{LOCAL_IP}:{CURRENT_PORT}",
                 "pi_ip": get_pi_ip()
             }
+            cfg["face_summary"] = get_face_summary()
             self._send_json(cfg)
+
+        elif parsed.path == '/api/member_faces':
+            query = parse_qs(parsed.query)
+            member_id = query.get('member_id', [''])[0]
+            faces = get_member_faces(member_id)
+            self._send_json({"success": True, "member_id": member_id, "count": len(faces), "photos": faces})
+
+        elif parsed.path.startswith('/dataset/'):
+            from urllib.parse import unquote
+            rel_path = unquote(parsed.path[len('/dataset/'):])
+            target_file = (DATASET_DIR / rel_path).resolve()
+            if DATASET_DIR in target_file.parents and target_file.is_file():
+                ext = target_file.suffix.lower()
+                mime = 'image/jpeg' if ext in ('.jpg', '.jpeg') else 'image/png' if ext == '.png' else 'application/octet-stream'
+                try:
+                    with open(target_file, 'rb') as f:
+                        content = f.read()
+                    self._send_bytes(content, mime, cache_seconds=3600)
+                except Exception:
+                    self.send_response(500)
+                    self.send_header('Content-Length', '0')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+            else:
+                self.send_response(404)
+                self.send_header('Content-Length', '0')
+                self.send_header('Connection', 'close')
+                self.end_headers()
 
         elif parsed.path == '/api/wifi':
             current = get_current_wifi()
@@ -1698,6 +1978,15 @@ class WebManagerHandler(BaseHTTPRequestHandler):
             ok, msg = add_wifi_network(ssid, password)
             self._send_json({"success": ok, "message": msg})
 
+        elif parsed.path == '/api/delete_face':
+            member_id = req_data.get('member_id', '')
+            filename = req_data.get('filename', '')
+            if member_id and filename:
+                success = delete_member_face(member_id, filename)
+                self._send_json({"success": success})
+            else:
+                self._send_json({"success": False, "error": "Missing member_id or filename"}, code=400)
+
         elif parsed.path == '/api/upload_face':
             member_id = req_data.get('member_id', 'unknown')
             b64_data = req_data.get('image_base64', '')
@@ -1739,14 +2028,27 @@ cap = cv2.VideoCapture(0)
 if cap.isOpened():
     ret, frame = cap.read()
     if ret and frame is not None:
-        cv2.imwrite(str(p / f'face_{{int(time.time()*1000)}}.jpg'), frame)
-        print('CAPTURED_OK')
+        filename = f'face_{{int(time.time()*1000)}}.jpg'
+        cv2.imwrite(str(p / filename), frame)
+        print('CAPTURED_OK:' + filename)
     cap.release()
 "
 """
                 stdin, stdout, stderr = ssh.exec_command(remote_code)
                 out = stdout.read().decode('utf-8')
                 
+                # If captured, download immediately to Windows local dataset so web can view it!
+                if 'CAPTURED_OK:' in out:
+                    captured_file = out.split('CAPTURED_OK:')[1].strip().splitlines()[0]
+                    try:
+                        sftp = ssh.open_sftp()
+                        local_mem_dir = DATASET_DIR / member_id
+                        local_mem_dir.mkdir(parents=True, exist_ok=True)
+                        sftp.get(f"/home/pi/dataset/{member_id}/{captured_file}", str(local_mem_dir / captured_file))
+                        sftp.close()
+                    except Exception as sftp_err:
+                        print(f"[!] Warning: failed to pull captured image: {sftp_err}")
+
                 ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
                 ssh.exec_command("sudo systemctl start smart-cooker.service")
                 ssh.close()
