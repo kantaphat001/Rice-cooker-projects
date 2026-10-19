@@ -1,8 +1,9 @@
 @echo off
-title Enroll Face & Manage Meds - Smart Rice Cooker
+chcp 65001 >nul
+title Enroll Face and Manage Meds - Smart Rice Cooker
 color 0E
 echo ======================================================================
-echo    SMART RICE COOKER - FACE & MEDICATION PORTAL
+echo    SMART RICE COOKER - FACE and MEDICATION PORTAL
 echo ======================================================================
 echo.
 echo  [1] เปิดหน้าต่างเว็บจัดการยาและเพิ่มรูปหน้า (แนะนำ ใช้งานง่ายที่สุด)
