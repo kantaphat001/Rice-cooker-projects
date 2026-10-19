@@ -23,6 +23,9 @@ except ImportError:
     print("[!] Error: 'paramiko' library is required. Please run: pip install paramiko")
     sys.exit(1)
 
+import re
+from pc_audio import play_cached_file
+
 PI_IP = "192.168.88.74"
 PI_USER = "pi"
 PI_PASS = "1234"
@@ -115,12 +118,29 @@ def main():
     channel.get_pty()
     channel.exec_command(remote_cmd)
 
+    sftp = None
+    try:
+        sftp = ssh.open_sftp()
+    except Exception:
+        pass
+
+    audio_pattern = re.compile(r'Playing:\s*([a-zA-Z0-9_\-\.]+?\.mp3)', re.IGNORECASE)
+    line_buf = ""
+
     try:
         while True:
             if channel.recv_ready():
                 data = channel.recv(4096).decode('utf-8', errors='replace')
                 sys.stdout.write(data)
                 sys.stdout.flush()
+                line_buf += data
+                while "\n" in line_buf:
+                    line, line_buf = line_buf.split("\n", 1)
+                    m = audio_pattern.search(line)
+                    if m:
+                        audio_filename = m.group(1)
+                        print(f"\n[PC-Speaker] 🔊 กำลังเล่นเสียง '{audio_filename}' ผ่านลำโพงของคอมพิวเตอร์...")
+                        play_cached_file(audio_filename, sftp=sftp, blocking=False)
             if channel.recv_stderr_ready():
                 err_data = channel.recv_stderr(4096).decode('utf-8', errors='replace')
                 sys.stderr.write(err_data)
@@ -132,6 +152,11 @@ def main():
         print("\n\n[*] ผู้ใช้สั่งหยุดระบบ (Ctrl+C)... กำลังปิดเซอร์วิส...")
         channel.close()
     finally:
+        if sftp:
+            try:
+                sftp.close()
+            except Exception:
+                pass
         if service_was_running:
             print("[*] กำลังเปิด background service กลับคืน...")
             ssh.exec_command("sudo systemctl start smart-cooker.service")

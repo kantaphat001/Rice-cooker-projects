@@ -29,7 +29,7 @@
 | 📡 **HC-SR04 TRIG** | Trigger | **GPIO 23** | **Pin 16** | ส่งสัญญาณคลื่นเสียง 40kHz (ต่อตรงเข้า Pin 16) |
 | 📡 **HC-SR04 ECHO** | Echo | **GPIO 24** | **Pin 18** | **ตัวแบ่งแรงดัน:** ECHO (5V) -> 1kΩ -> Pin 18 -> 2kΩ/2.2kΩ -> GND |
 | 📷 **กล้อง USB** | พอร์ต USB | **USB 2.0 / 3.0** | **USB Port** | เสียบเข้าช่อง USB ใดก็ได้ของ Raspberry Pi 4 |
-| 🔊 **ลำโพง** | แจ็ค 3.5mm / USB | **Audio Jack 3.5mm** | **รูแจ็คสีดำ** | หรือใช้ลำโพง USB เสียบเข้าช่อง USB |
+| 🔊 **ลำโพง** | แจ็ค 3.5mm / USB | **Audio Jack 3.5mm** | **รูแจ็คสีดำ** | หรือใช้ลำโพง USB *(หากยังไม่ได้ต่อลำโพงเข้าบอร์ด Pi สามารถเปิดฟังเสียงผ่าน **ลำโพงของคอมพิวเตอร์ Windows PC** ได้ทันทีโดยอัตโนมัติ ผ่านระบบ Audio Relay ในสคริปต์ 8 และ 10)* |
 | 🔘 **ปุ่มกด** | ❌ **ไม่ต้องต่อ** | ❌ **ไม่ใช้งาน** | ❌ **ไม่ใช้งาน** | **ตัดปุ่มออกสมบูรณ์แบบ (Hands-Free ไร้สัมผัส 100%)** |
 
 > *(หมายเหตุ: หากต้องการสลับไปใช้ US-016 หรือ US-015 ในอนาคต โค้ดยังคงรองรับแบบ Multi-Sensor ได้ทันที)*
@@ -146,3 +146,13 @@ Rice-cooker-projects/
 3. **Self-Healing Watchdog:** หากกล้องเกิดสายหลุดหรือสัญญาณขัดข้อง ระบบจะ Reset และ Reconnect กล้องให้อัตโนมัติโดยโปรแกรมไม่แครช
 4. **RAM 1GB Hard Limit:** จำกัดการใช้ RAM สูงสุดไม่เกิน `350MB` ด้วย Linux Cgroups ป้องกันอาการเครื่องค้าง
 5. **Auto-Pause Diagnostic Hooks:** เมื่อเปิดสคริปต์ทดสอบฮาร์ดแวร์ (`8-Hardware-Diagnostic-Suite.bat`, `9-Test-LED-Direct.bat`, `6-Live-Camera-Stream.bat`) ระบบจะสั่งหยุด service ชั่วคราวอัตโนมัติเพื่อปลดล็อก GPIO และกล้อง ไม่ให้เกิดข้อผิดพลาด `GPIO busy` หรือ V4L2 device lock และจะเปิด service คืนค่าเดิมทันทีเมื่อทดสอบเสร็จ
+
+---
+
+## 9. ระบบถ่ายทอดเสียงออกลำโพงคอมพิวเตอร์ (Windows PC Audio Relay for Headless Testing)
+
+สำหรับกรณีที่ผู้ใช้ **ยังไม่ได้เสียบลำโพงเข้ากับบอร์ด Raspberry Pi** ระบบมีกลไก Audio Relay ผ่านโมดูล [`pc_audio.py`](file:///c:/Users/TC10/Documents/GitHub/Rice-cooker-projects/pc_audio.py):
+1. **ไม่ต้องติดตั้งโปรแกรมเสริมบน Windows:** เรียกใช้ Windows PresentationCore `System.Windows.Media.MediaPlayer` ผ่าน PowerShell ทำให้อ่านและเล่นไฟล์ `.mp3` สุภาพภาษาไทยได้ทันทีจาก Windows
+2. **ทดสอบฮาร์ดแวร์ (`8-Hardware-Diagnostic-Suite.bat` ข้อ 3):** เมื่อ Raspberry Pi สังเคราะห์เสียงเสร็จ จะส่งชื่อไฟล์ `.mp3` มายัง Windows จากนั้นคอมพิวเตอร์จะดาวน์โหลดผ่าน SFTP และเล่นออกลำโพงของคอมพิวเตอร์ให้ฟังทันที
+3. **รันสด (`10-Start-Companion-Box.bat`):** เมื่อมีการตรวจพบคนและระบบสั่งเล่นเสียงเตือนยา ระบบ Streamer บน Windows จะตรวจจับ Event `[AudioPlayer] 🔊 Playing: <hash>.mp3` และส่งเสียงออกลำโพงคอมพิวเตอร์แบบ Background Non-Blocking ทันทีเสมือนมีลำโพงต่ออยู่ข้างหน้า
+

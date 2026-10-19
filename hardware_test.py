@@ -16,6 +16,9 @@ except ImportError:
     print("[!] Error: paramiko is required. Run: pip install paramiko")
     sys.exit(1)
 
+import re
+from pc_audio import play_cached_file
+
 PI_IP = "192.168.88.74"
 PI_USER = "pi"
 PI_PASS = "1234"
@@ -25,11 +28,13 @@ def run_remote_python(ssh, code: str):
     channel = transport.open_session()
     channel.get_pty()
     channel.exec_command(f"python3 -c \"{code}\"")
+    captured = []
     while True:
         if channel.recv_ready():
             out = channel.recv(4096).decode('utf-8', errors='replace')
             sys.stdout.write(out)
             sys.stdout.flush()
+            captured.append(out)
         if channel.recv_stderr_ready():
             err = channel.recv_stderr(4096).decode('utf-8', errors='replace')
             sys.stderr.write(err)
@@ -38,6 +43,7 @@ def run_remote_python(ssh, code: str):
             break
         time.sleep(0.05)
     channel.close()
+    return "".join(captured)
 
 def pause_service_if_active(ssh):
     stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service")
@@ -62,7 +68,7 @@ def main():
     print()
     print("  [1] ทดสอบไฟ LED 3 สี (แดง GPIO 17 -> เหลือง GPIO 27 -> เขียว GPIO 22)")
     print("  [2] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะทางสด TRIG 23, ECHO 24)")
-    print("  [3] ทดสอบเสียงพูดภาษาไทยผ่านลำโพง (mpg123 / Edge-TTS)")
+    print("  [3] ทดสอบเสียงพูดภาษาไทย (เล่นออกลำโพงคอมพิวเตอร์ Windows และ Pi)")
     print("  [4] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
     print("  [5] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
     print("  [0] ออกจากโปรแกรม")
@@ -156,7 +162,8 @@ print('[+] จบการทดสอบ Ultrasonic')
             run_remote_python(ssh, code)
 
         elif choice == "3":
-            print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทยออกลำโพง...")
+            print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทย...")
+            print("[*] (ระบบจะเล่นออกทั้งลำโพงของ Raspberry Pi และลำโพงของคอมพิวเตอร์ Windows)")
             code = """
 from smart_rice_cooker.voice.tts_engine import TTSEngine
 from smart_rice_cooker.voice.audio_player import AudioPlayer
@@ -169,10 +176,22 @@ test_phrase = 'ทดสอบระบบเสียงภาษาไทย �
 print(f'[*] กำลังพูด: {test_phrase}')
 path = tts.synthesize(test_phrase)
 if path:
-    player.play_file(path, blocking=True)
-print('[+] ทดสอบเสียงเสร็จสมบูรณ์!')
+    print(f'PLAYING_AUDIO_FILE:{path.name}')
+    player.play_file(path, blocking=False)
+print('[+] ประมวลผลและทดสอบเสียงบน Pi เสร็จสมบูรณ์!')
 """
-            run_remote_python(ssh, code)
+            out = run_remote_python(ssh, code)
+            m = re.search(r'PLAYING_AUDIO_FILE:([a-zA-Z0-9_\-\.]+?\.mp3)', out)
+            if m:
+                audio_file = m.group(1)
+                print(f"\n[+] 🔊 กำลังเล่นเสียงออกลำโพงของคอมพิวเตอร์ (Windows PC Speakers)...")
+                try:
+                    sftp = ssh.open_sftp()
+                    play_cached_file(audio_file, sftp=sftp, blocking=True)
+                    sftp.close()
+                    print("[+] 🔊 เล่นเสียงภาษาไทยผ่านลำโพงของคอมพิวเตอร์เสร็จสิ้นเรียบร้อยแล้ว!")
+                except Exception as e:
+                    print(f"[!] เล่นเสียงบนคอมพิวเตอร์ขัดข้อง: {e}")
 
         elif choice == "4":
             was_paused = pause_service_if_active(ssh)
