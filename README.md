@@ -54,7 +54,7 @@
 4. **`4-System-Monitor.bat`**: หน้าจอมอนิเตอร์ CPU Temp, RAM Usage, Process Memory
 5. **`5-Show-Camera-On-Pi.bat`**: เปิดหน้าต่างกล้อง AI บนหน้าจอ Remote Desktop ของ Pi
 6. **`6-Live-Camera-Stream.bat`**: ดูภาพสตรีมกล้องสดแบบเรียลไทม์ผ่านเว็บเบราว์เซอร์
-7. **`7-Enroll-Family-Face.bat`**: ลงทะเบียนใบหน้าสมาชิกครอบครัวใหม่เข้าสู่ระบบ
+7. **`7-Manage-Meds-And-Faces.bat`**: เว็บจัดการยา (เพิ่ม/ลบยาได้ใน 1 คลิก) และเพิ่มรูปหน้าสมาชิก (หรือ `7-Enroll-Family-Face.bat`)
 8. **`8-Hardware-Diagnostic-Suite.bat`**: ชุดทดสอบฮาร์ดแวร์ทีละชิ้น (LED, Ultrasonic, ลำโพง, กล้อง)
 9. **`9-Test-LED-Direct.bat`**: สั่งเปิดไฟ LED ทั้ง 3 สีค้างไว้เพื่อตรวจสอบสายทางกายภาพ
 10. **`10-Start-Companion-Box.bat`**: รันระบบเต็มรูปแบบบนคอนโซล (เห็น Log ละเอียด)

@@ -223,7 +223,7 @@ class CompanionService:
             self.fsm.transition_to(SystemState.STANDBY)
 
         if audio_path:
-            chime = settings.CHIME_FILE if getattr(settings, "PLAY_CHIME_BEFORE_SPEECH", True) else None
+            chime = settings.CHIME_FILE if getattr(settings, "PLAY_CHIME_BEFORE_SPEECH", False) else None
             self.player.play_with_chime(audio_path, chime_path=chime, on_finished=_on_done)
         else:
             _on_done()
