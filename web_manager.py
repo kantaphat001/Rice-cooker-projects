@@ -2,6 +2,8 @@
 web_manager.py - Visual Medication & Family Management Web Portal
 Zero-dependency web application (Python Standard Library HTTP Server).
 Features:
+- Instant Zero-Latency Loading: Pre-renders with embedded data and Content-Length headers.
+- Multi-threaded: Uses ThreadingHTTPServer to handle multiple concurrent mobile connections.
 - Responsive Platform-Adaptive Layout: Tailored for Desktop PC, Tablets, and Smartphones.
 - Mobile PWA & Home Screen Shortcut: Add to Home Screen with native app standalone mode.
 - Valid 192x192 & 512x512 PNG Icons and Service Worker for 100% PWA Compliance.
@@ -27,7 +29,7 @@ import math
 import webbrowser
 import threading
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 # Ensure project root is in path
@@ -774,10 +776,34 @@ HTML_CONTENT = """<!DOCTYPE html>
   </div>
 
   <script>
+    /*__EMBEDDED_DATA__*/
     let configData = { members: {} };
     let currentMemberId = "";
     let serverInfo = { local_ip: "127.0.0.1", port: 8080, mobile_url: "", pi_ip: "" };
     let deferredInstallPrompt = null;
+
+    // Fast-boot from embedded data (0ms latency, zero spinner)
+    if (window.EMBEDDED_DATA) {
+      try {
+        configData = { members: window.EMBEDDED_DATA.config?.members || {} };
+        serverInfo = window.EMBEDDED_DATA.server_info || {};
+        currentMemberId = Object.keys(configData.members || {})[0] || "";
+        renderMemberChips();
+        renderCurrentMember();
+        renderSchedule();
+        checkInAppBrowser();
+        const piText = document.getElementById('pi-status-text');
+        if (piText && serverInfo.pi_ip) {
+          piText.innerText = `Pi: ${serverInfo.pi_ip}`;
+        }
+        const inputShort = document.getElementById('shortcut-url-input');
+        if (inputShort && serverInfo.mobile_url) {
+          inputShort.value = serverInfo.mobile_url;
+        }
+      } catch (e) {
+        console.error("Embedded init error:", e);
+      }
+    }
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
@@ -830,31 +856,18 @@ HTML_CONTENT = """<!DOCTYPE html>
         renderMemberChips();
         renderCurrentMember();
         renderSchedule();
-        initMobileQr();
         checkInAppBrowser();
 
         const piText = document.getElementById('pi-status-text');
         if (piText && serverInfo.pi_ip) {
           piText.innerText = `Pi: ${serverInfo.pi_ip}`;
         }
+        const inputShort = document.getElementById('shortcut-url-input');
+        if (inputShort && serverInfo.mobile_url) {
+          inputShort.value = serverInfo.mobile_url;
+        }
       } catch (err) {
         console.error("Load config failed:", err);
-      }
-    }
-
-    function initMobileQr() {
-      const url = serverInfo.mobile_url || window.location.href;
-      const qrImg = document.getElementById('qr-img');
-      const qrText = document.getElementById('qr-url-text');
-      const inputShort = document.getElementById('shortcut-url-input');
-      if (qrImg) {
-        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
-      }
-      if (qrText) {
-        qrText.innerText = url;
-      }
-      if (inputShort) {
-        inputShort.value = url;
       }
     }
 
@@ -873,12 +886,19 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     function openQrModal() {
-      initMobileQr();
+      const url = serverInfo.mobile_url || window.location.href;
+      const qrImg = document.getElementById('qr-img');
+      const qrText = document.getElementById('qr-url-text');
+      if (qrImg && (!qrImg.src || qrImg.src.endsWith('/'))) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+      }
+      if (qrText) {
+        qrText.innerText = url;
+      }
       document.getElementById('modal-qr').classList.remove('hidden');
     }
 
     function openShortcutModal() {
-      initMobileQr();
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       switchShortcutTab(isIOS ? 'ios' : 'android');
       document.getElementById('modal-shortcut').classList.remove('hidden');
@@ -1309,28 +1329,45 @@ HTML_CONTENT = """<!DOCTYPE html>
     function closeModal(id) {
       document.getElementById(id).classList.add('hidden');
     }
-
-    // Auto load on init
-    loadConfig();
   </script>
 </body>
 </html>
 """
 
 class WebManagerHandler(BaseHTTPRequestHandler):
-    def _send_json(self, data, code=200):
+    protocol_version = "HTTP/1.1"
+
+    def _send_bytes(self, content_bytes: bytes, content_type: str, code: int = 200, cache_seconds: int = 0):
         self.send_response(code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', str(len(content_bytes)))
+        if cache_seconds > 0:
+            self.send_header('Cache-Control', f'public, max-age={cache_seconds}')
+        else:
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Connection', 'close')
         self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
+        self.wfile.write(content_bytes)
+
+    def _send_json(self, data, code=200):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self._send_bytes(body, 'application/json; charset=utf-8', code=code)
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path in ('/', '/index.html'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(HTML_CONTENT.encode('utf-8'))
+            cfg = load_config()
+            target_pi = get_pi_ip()
+            server_info = {
+                "local_ip": LOCAL_IP,
+                "port": CURRENT_PORT,
+                "mobile_url": f"http://{LOCAL_IP}:{CURRENT_PORT}",
+                "pi_ip": target_pi
+            }
+            embedded_data = json.dumps({"config": cfg, "server_info": server_info}, ensure_ascii=False)
+            html = HTML_CONTENT.replace('/*__EMBEDDED_DATA__*/', f'window.EMBEDDED_DATA = {embedded_data};')
+            self._send_bytes(html.encode('utf-8'), 'text/html; charset=utf-8')
+
         elif parsed.path == '/api/config':
             cfg = load_config()
             cfg["server_info"] = {
@@ -1340,46 +1377,38 @@ class WebManagerHandler(BaseHTTPRequestHandler):
                 "pi_ip": get_pi_ip()
             }
             self._send_json(cfg)
+
         elif parsed.path == '/api/wifi':
             current = get_current_wifi()
             saved = list_saved_wifi()
             self._send_json({"current": current, "saved": saved, "pi_ip": get_pi_ip()})
+
         elif parsed.path == '/manifest.json':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/manifest+json; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(json.dumps(MANIFEST_JSON, ensure_ascii=False).encode('utf-8'))
+            body = json.dumps(MANIFEST_JSON, ensure_ascii=False).encode('utf-8')
+            self._send_bytes(body, 'application/manifest+json; charset=utf-8')
+
         elif parsed.path in ('/icon-192.png', '/apple-touch-icon.png'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'image/png')
-            self.send_header('Cache-Control', 'public, max-age=86400')
-            self.end_headers()
-            self.wfile.write(PNG_ICON_192)
+            self._send_bytes(PNG_ICON_192, 'image/png', cache_seconds=86400)
+
         elif parsed.path == '/icon-512.png':
-            self.send_response(200)
-            self.send_header('Content-Type', 'image/png')
-            self.send_header('Cache-Control', 'public, max-age=86400')
-            self.end_headers()
-            self.wfile.write(PNG_ICON_512)
+            self._send_bytes(PNG_ICON_512, 'image/png', cache_seconds=86400)
+
         elif parsed.path in ('/icon.svg', '/favicon.ico'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'image/svg+xml; charset=utf-8')
-            self.send_header('Cache-Control', 'public, max-age=86400')
-            self.end_headers()
-            self.wfile.write(ICON_SVG.encode('utf-8'))
+            self._send_bytes(ICON_SVG.encode('utf-8'), 'image/svg+xml; charset=utf-8', cache_seconds=86400)
+
         elif parsed.path == '/sw.js':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/javascript; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(SW_JS.encode('utf-8'))
+            self._send_bytes(SW_JS.encode('utf-8'), 'application/javascript; charset=utf-8', cache_seconds=3600)
+
         else:
             self.send_response(404)
+            self.send_header('Content-Length', '0')
+            self.send_header('Connection', 'close')
             self.end_headers()
 
     def do_POST(self):
         parsed = urlparse(self.path)
         content_len = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_len)
+        body = self.rfile.read(content_len) if content_len > 0 else b'{}'
         try:
             req_data = json.loads(body.decode('utf-8'))
         except Exception:
@@ -1415,7 +1444,6 @@ class WebManagerHandler(BaseHTTPRequestHandler):
                 with open(save_file, "wb") as f:
                     f.write(img_bytes)
 
-                # Sync to Pi in background
                 threading.Thread(target=_sync_photo_and_rebuild_pi, args=(member_id, save_file), daemon=True).start()
                 self._send_json({"success": True, "path": str(save_file)})
             except Exception as e:
@@ -1452,7 +1480,6 @@ if cap.isOpened():
                 stdin, stdout, stderr = ssh.exec_command(remote_code)
                 out = stdout.read().decode('utf-8')
                 
-                # Rebuild faces
                 ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
                 ssh.exec_command("sudo systemctl start smart-cooker.service")
                 ssh.close()
@@ -1461,6 +1488,8 @@ if cap.isOpened():
                 self._send_json({"success": False, "error": str(e)}, code=500)
         else:
             self.send_response(404)
+            self.send_header('Content-Length', '0')
+            self.send_header('Connection', 'close')
             self.end_headers()
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -1487,7 +1516,7 @@ def run_server(port=8080):
     for p in range(port, port + 10):
         try:
             CURRENT_PORT = p
-            server = HTTPServer(('0.0.0.0', p), WebManagerHandler)
+            server = ThreadingHTTPServer(('0.0.0.0', p), WebManagerHandler)
             safe_print("=" * 70)
             safe_print("   [+] SMART RICE COOKER - MEDICATION & FAMILY PORTAL")
             safe_print("=" * 70)
