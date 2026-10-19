@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Enforce minimal thread pool for OpenCV on 1GB RAM Pi
 try:
-    cv2.setNumThreads(2)
+    cv2.setNumThreads(1)
 except Exception:
     pass
 

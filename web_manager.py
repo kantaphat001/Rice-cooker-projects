@@ -38,11 +38,6 @@ try:
 except ImportError:
     PARAMIKO_AVAILABLE = False
 
-from pc_audio import play_cached_file
-from smart_rice_cooker.voice.phrase_builder import ThaiPhraseBuilder
-from smart_rice_cooker.voice.tts_engine import TTSEngine
-from smart_rice_cooker.config import settings
-
 def load_config():
     if CONFIG_PATH.is_file():
         try:
@@ -407,9 +402,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <button onclick="testVoice('${currentMemberId}', '${key}')" class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded-lg text-xs font-medium transition">
-                  <span>🔊</span> ทดสอบเสียงเตือนมื้อนี้
-                </button>
                 <button onclick="openAddMedModal('${key}', '${slot.label}')" class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition shadow-sm">
                   <span>➕</span> เพิ่มยาในมื้อนี้
                 </button>
@@ -617,18 +609,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
     }
 
-    async function testVoice(memberId, slotKey) {
-      try {
-        fetch('/api/test_voice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ member_id: memberId, slot_key: slotKey })
-        });
-      } catch (err) {
-        console.error("Test voice error:", err);
-      }
-    }
-
     async function saveConfigToServer() {
       try {
         await fetch('/api/save', {
@@ -742,29 +722,6 @@ if cap.isOpened():
                 self._send_json({"success": 'CAPTURED_OK' in out})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, code=500)
-
-        elif parsed.path == '/api/test_voice':
-            member_id = req_data.get('member_id')
-            slot_key = req_data.get('slot_key')
-            cfg = load_config()
-            mem = cfg.get("members", {}).get(member_id, {})
-            slot = mem.get("schedules", {}).get(slot_key, {})
-            
-            phrase = ThaiPhraseBuilder.build_full_meal_announcement(
-                greeting=mem.get("voice_greeting", "สวัสดีค่ะ"),
-                slot_label=slot.get("label", "มื้ออาหาร"),
-                before_meds=slot.get("before_meal", []),
-                after_meds=slot.get("after_meal", [])
-            )
-            
-            def _play_worker():
-                tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.VOICE_NAME, rate=settings.VOICE_RATE)
-                audio_path = tts.synthesize(phrase)
-                if audio_path:
-                    play_cached_file(audio_path.name, blocking=True)
-            
-            threading.Thread(target=_play_worker, daemon=True).start()
-            self._send_json({"success": True, "phrase": phrase})
         else:
             self.send_response(404)
             self.end_headers()

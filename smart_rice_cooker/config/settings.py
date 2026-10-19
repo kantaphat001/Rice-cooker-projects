@@ -40,7 +40,7 @@ ULTRASONIC_TIMEOUT_SEC = 0.04
 
 # Thermal & Camera Management
 CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", 0))
-CAMERA_STANDBY_FPS = float(os.getenv("CAMERA_STANDBY_FPS", 2.0))   # Idle cool grab
+CAMERA_STANDBY_FPS = float(os.getenv("CAMERA_STANDBY_FPS", 1.0))   # Idle cool grab (1 FPS to minimize thermals and RAM)
 CAMERA_ACTIVE_FPS = float(os.getenv("CAMERA_ACTIVE_FPS", 15.0))    # Detecting speed
 CAMERA_FRAME_WIDTH = 640
 CAMERA_FRAME_HEIGHT = 480

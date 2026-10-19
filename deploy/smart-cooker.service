@@ -10,7 +10,7 @@ Group=pi
 WorkingDirectory=/home/pi
 Environment="PYTHONUNBUFFERED=1"
 Environment="DISPLAY=:0"
-ExecStart=/usr/bin/python3 -m smart_rice_cooker.main --headless --camera-only
+ExecStart=/usr/bin/python3 -m smart_rice_cooker.main --headless
 
 # Self-Healing & High Availability
 Restart=always
@@ -18,10 +18,10 @@ RestartSec=3s
 KillMode=mixed
 TimeoutStopSec=5s
 
-# 1GB RAM Guardian (Hard Limits via Linux Cgroups)
-MemoryHigh=300M
-MemoryMax=350M
-CPUQuota=150%
+# 1GB RAM Guardian (Hard Limits via Linux Cgroups - Ultra Low Memory Profile)
+MemoryHigh=180M
+MemoryMax=220M
+CPUQuota=100%
 
 # Logging
 StandardOutput=journal
