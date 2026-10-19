@@ -927,30 +927,41 @@ HTML_CONTENT = """<!DOCTYPE html>
     let currentMemberId = "";
     let serverInfo = { local_ip: "127.0.0.1", port: 8080, mobile_url: "", pi_ip: "" };
     let faceSummary = {};
+    let currentFaceList = [];
     let deferredInstallPrompt = null;
 
-    // Fast-boot from embedded data (0ms latency, zero spinner)
-    if (window.EMBEDDED_DATA) {
-      try {
-        configData = { members: window.EMBEDDED_DATA.config?.members || {} };
-        serverInfo = window.EMBEDDED_DATA.server_info || {};
-        faceSummary = window.EMBEDDED_DATA.face_summary || {};
-        currentMemberId = Object.keys(configData.members || {})[0] || "";
-        renderMemberChips();
-        renderCurrentMember();
-        renderSchedule();
-        checkInAppBrowser();
-        const piText = document.getElementById('pi-status-text');
-        if (piText && serverInfo.pi_ip) {
-          piText.innerText = `Pi: ${serverInfo.pi_ip}`;
+    // Resilient boot function (Embedded data first for 0ms speed, fallback to API)
+    function initApp() {
+      if (window.EMBEDDED_DATA && window.EMBEDDED_DATA.config) {
+        try {
+          configData = { members: window.EMBEDDED_DATA.config.members || {} };
+          serverInfo = window.EMBEDDED_DATA.server_info || {};
+          faceSummary = window.EMBEDDED_DATA.face_summary || {};
+          currentMemberId = Object.keys(configData.members || {})[0] || "";
+          renderMemberChips();
+          renderCurrentMember();
+          renderSchedule();
+          checkInAppBrowser();
+          const piText = document.getElementById('pi-status-text');
+          if (piText && serverInfo.pi_ip) {
+            piText.innerText = `Pi: ${serverInfo.pi_ip}`;
+          }
+          const inputShort = document.getElementById('shortcut-url-input');
+          if (inputShort && serverInfo.mobile_url) {
+            inputShort.value = serverInfo.mobile_url;
+          }
+          return;
+        } catch (e) {
+          console.error("Embedded init error, falling back to /api/config:", e);
         }
-        const inputShort = document.getElementById('shortcut-url-input');
-        if (inputShort && serverInfo.mobile_url) {
-          inputShort.value = serverInfo.mobile_url;
-        }
-      } catch (e) {
-        console.error("Embedded init error:", e);
       }
+      loadConfig();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
     }
 
     // Register Service Worker for PWA
@@ -1651,8 +1662,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       renderSchedule();
     }
 
-    let currentFaceList = [];
-
     function openFaceModal(id, name, defaultTab = 'gallery') {
       const targetId = id || currentMemberId;
       const targetName = name || (configData.members[targetId]?.display_name || targetId);
@@ -1737,7 +1746,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     async function deleteFace(memberId, filename) {
-      if (!confirm("คุณต้องการลบรูปใบหน้านี้ใช่หรือไม่?\n(ระบบจะอัปเดตโมเดล AI บน Pi ให้ทันที)")) return;
+      if (!confirm("คุณต้องการลบรูปใบหน้านี้ใช่หรือไม่? (ระบบจะอัปเดตโมเดล AI บน Pi ให้ทันที)")) return;
       try {
         const res = await fetch('/api/delete_face', {
           method: 'POST',
