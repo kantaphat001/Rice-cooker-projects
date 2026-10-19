@@ -253,6 +253,22 @@ NetworkManager บนบอร์ด Pi สามารถจดจำ Wi-Fi ไ
    * ครอบการทำงานด้วยฟังก์ชัน `initApp()` พร้อมกลไก `DOMContentLoaded` และระบบ Fallback ดึงข้อมูลจาก API อัตโนมัติหากข้อมูลฝังล่วงหน้าไม่สมบูรณ์
    * ผ่านการทดสอบโหลดเสร็จสมบูรณ์ 100% ด้วย Edge Headless Browser โดยตรวจไม่พบข้อผิดพลาดใดๆ (`errors: 0`)
 
+---
+
+## 12. การยกเครื่องโครงสร้างโมดูลและดีไซน์แบบ Apple & macOS (Modular Architecture & Borderless UI)
+
+เพื่อยกระดับความเสถียร สวยงาม เรียบหรู และป้องกันบั๊กในอนาคต:
+1. **แยกโฟลเดอร์โครงสร้างชัดเจน:**
+   * โค้ดส่วนหลังบ้าน (Backend): อยู่ใน `web/backend/` แยกไฟล์ตามหน้าที่ (`server.py`, `config_service.py`, `face_service.py`, `wifi_service.py`, `network_utils.py`)
+   * โค้ดส่วนหน้าบ้าน (Frontend): อยู่ใน `web/frontend/` ประกอบด้วย `index.html`, `css/style.css`, และโมดูลจาวาสคริปต์ใน `js/`
+   * ไฟล์ `web_manager.py` ทำหน้าที่เป็น Entrypoint สะอาดๆ ทำให้ไฟล์ Batch ทั้งหมด เช่น [`7-Manage-Meds-And-Faces.bat`](file:///c:/Users/TC10/Documents/GitHub/Rice-cooker-projects/7-Manage-Meds-And-Faces.bat) ทำงานต่อเนื่องได้ 100%
+2. **ดีไซน์ไร้ขอบกล่องหนา (Borderless & Elevation):**
+   * ใช้การยกพื้นผิวด้วยแสงเงานุ่มนวลตามมาตรฐาน Apple Design และกระจกฝ้า Frosted Glass
+   * เมนูสลับสมาชิกแบบ macOS Segmented Switcher
+   * ตารางยาแบบ Apple Health พร้อมป้ายสีซองยาพาสเทล
+3. **ตัดคำศัพท์หุ่นยนต์ (Zero AI-Slop):**
+   * ใช้ภาษาไทยที่สุภาพ อบอุ่น กระชับ ใช้งานง่ายสำหรับผู้สูงอายุและทุกคนในครอบครัว
+
 
 
 

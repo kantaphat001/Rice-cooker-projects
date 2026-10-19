@@ -1,0 +1,210 @@
+/**
+ * Smart Rice Cooker - Clean API Client (2026 Edition)
+ * Handles backend communication with graceful fallback and user-friendly error notifications.
+ */
+
+import { store } from './state.js';
+import { showToast } from './components/toast.js';
+
+export async function fetchConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) throw new Error('ไม่สามารถโหลดข้อมูลการตั้งค่าได้');
+    const data = await res.json();
+    store.setState({
+      configData: { members: data.members || {} },
+      serverInfo: data.server_info || store.getState().serverInfo,
+      faceSummary: data.face_summary || store.getState().faceSummary
+    });
+    return data;
+  } catch (err) {
+    console.error('fetchConfig failed:', err);
+    showToast('โหลดข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่อ', 'error');
+    return null;
+  }
+}
+
+export async function saveConfig(configData) {
+  try {
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(configData)
+    });
+    const result = await res.json();
+    if (result.success) {
+      store.setState({ configData });
+      showToast('บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
+      return true;
+    }
+    throw new Error(result.error || 'บันทึกไม่สำเร็จ');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function addMember(id, displayName, voiceGreeting) {
+  try {
+    const res = await fetch('/api/members/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, display_name: displayName, voice_greeting: voiceGreeting })
+    });
+    const data = await res.json();
+    if (data.success) {
+      store.setState({
+        configData: { members: data.members },
+        currentMemberId: id
+      });
+      showToast(`เพิ่มสมาชิก "${displayName}" เรียบร้อยแล้ว`, 'success');
+      return true;
+    }
+    throw new Error(data.error || 'ไม่สามารถเพิ่มสมาชิกได้');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function deleteMember(memberId) {
+  try {
+    const res = await fetch('/api/members/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const remainingIds = Object.keys(data.members || {});
+      store.setState({
+        configData: { members: data.members },
+        currentMemberId: remainingIds[0] || ''
+      });
+      showToast('ลบสมาชิกเรียบร้อยแล้ว', 'info');
+      return true;
+    }
+    throw new Error(data.error || 'ไม่สามารถลบสมาชิกได้');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function fetchMemberFaces(memberId) {
+  try {
+    const res = await fetch(`/api/member_faces?member_id=${encodeURIComponent(memberId)}`);
+    const data = await res.json();
+    if (data.success) {
+      store.setState({ currentFaceList: data.photos || [] });
+      return data.photos || [];
+    }
+    return [];
+  } catch (err) {
+    console.error('fetchMemberFaces error:', err);
+    return [];
+  }
+}
+
+export async function deleteFace(memberId, filename) {
+  try {
+    const res = await fetch('/api/delete_face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId, filename })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchMemberFaces(memberId);
+      // Update summary count
+      const summary = { ...store.getState().faceSummary };
+      const currentFaces = store.getState().currentFaceList;
+      summary[memberId] = {
+        count: currentFaces.length,
+        latest_url: currentFaces[0] ? currentFaces[0].url : null
+      };
+      store.setState({ faceSummary: summary });
+      showToast('ลบรูปถ่ายใบหน้าเรียบร้อยแล้ว', 'info');
+      return true;
+    }
+    throw new Error(data.error || 'ไม่สามารถลบรูปภาพได้');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function uploadFace(memberId, base64Image) {
+  try {
+    const res = await fetch('/api/upload_face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId, image_base64: base64Image })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchMemberFaces(memberId);
+      showToast('อัปโหลดรูปหน้าใหม่เรียบร้อยแล้ว ระบบกำลังอัปเดตโมเดล AI', 'success');
+      return true;
+    }
+    throw new Error(data.error || 'อัปโหลดรูปภาพล้มเหลว');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function captureFaceFromPi(memberId) {
+  try {
+    const res = await fetch('/api/capture_face', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchMemberFaces(memberId);
+      showToast('ถ่ายรูปจากกล้องหม้อหุงข้าวสำเร็จ', 'success');
+      return true;
+    }
+    throw new Error(data.error || 'กล้องไม่ตอบสนอง');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function fetchWifiStatus() {
+  try {
+    const res = await fetch('/api/wifi');
+    const data = await res.json();
+    store.setState({ wifiStatus: data });
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function scanWifiNetworks() {
+  try {
+    const res = await fetch('/api/wifi/scan', { method: 'POST' });
+    const data = await res.json();
+    return data.networks || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function saveWifiNetwork(ssid, password) {
+  try {
+    const res = await fetch('/api/wifi/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ssid, password })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+}

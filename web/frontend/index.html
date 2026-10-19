@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Smart Rice Cooker - ระบบเตือนยาหม้อหุงข้าวอัจฉริยะ</title>
+  
+  <!-- Apple & PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="เตือนยา">
+  <meta name="theme-color" content="#F8FAFC">
+  
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!-- Google Fonts: Sarabun (Clear Thai letters with circular heads) & Inter (Apple-style Numerals) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS Engine -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Apple Minimalist Design System -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <script>
+    /*__EMBEDDED_DATA__*/
+  </script>
+</head>
+<body class="min-h-full flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white pb-20 sm:pb-8">
+
+  <!-- App Header Target (macOS Frosted Toolbar) -->
+  <div id="app-header"></div>
+
+  <!-- In-App Browser Warning (e.g. LINE / Facebook in-app browser) -->
+  <div id="inapp-warning-banner" class="hidden bg-amber-500 text-white text-xs px-4 py-2.5 flex items-center justify-between gap-3 shadow-xs">
+    <div class="flex items-center gap-2">
+      <span class="text-base">⚠️</span>
+      <span>เปิดผ่านแอป LINE/Facebook แนะนำให้กดจุด 3 จุดแล้วเลือก <strong>"เปิดด้วยเบราว์เซอร์เริ่มต้น (Safari / Chrome)"</strong> เพื่อบันทึก Shortcut ลงหน้าจอโฮมได้</span>
+    </div>
+    <button onclick="document.getElementById('inapp-warning-banner').classList.add('hidden')" class="text-white hover:text-amber-100 font-bold px-2 py-0.5">✕</button>
+  </div>
+
+  <!-- Main Content Canvas -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- Member Selector & Profile Hero Section -->
+    <section id="member-bar-container"></section>
+
+    <!-- Medication Schedule Board (4 Meals) -->
+    <section id="schedule-board-container" class="space-y-5"></section>
+  </main>
+
+  <!-- Mobile Quick Dock (Floating Bottom Bar for Fast Jumping) -->
+  <nav class="sm:hidden fixed bottom-0 inset-x-0 glass-nav border-t border-slate-200/50 safe-area-bottom z-30 px-3 py-2 flex items-center justify-around text-[11px] font-semibold text-slate-600">
+    <button onclick="document.getElementById('meal-section-morning')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
+      <span class="text-lg">🌅</span>
+      <span>เช้า</span>
+    </button>
+    <button onclick="document.getElementById('meal-section-noon')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
+      <span class="text-lg">☀️</span>
+      <span>กลางวัน</span>
+    </button>
+    <button onclick="document.getElementById('meal-section-evening')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
+      <span class="text-lg">🌙</span>
+      <span>เย็น</span>
+    </button>
+    <button onclick="document.getElementById('meal-section-bedtime')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
+      <span class="text-lg">🛌</span>
+      <span>ก่อนนอน</span>
+    </button>
+  </nav>
+
+  <!-- Modal Containers (Sheets) -->
+  <div id="modal-med-container"></div>
+  <div id="modal-face-container"></div>
+  <div id="modal-wifi-container"></div>
+  <div id="modal-aux-container"></div>
+
+  <!-- ES2026 Modular Application Script -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -227,6 +227,25 @@ Rice-cooker-projects/
       2. รวมและยกขอบเขตตัวแปร Global State ทั้งหมด (`configData`, `currentMemberId`, `serverInfo`, `faceSummary`, `currentFaceList`, `deferredInstallPrompt`) ไว้ที่ส่วนบนสุดของแท็ก `<script>`
       3. ปรับปรุงกลไกการโหลดเริ่มต้นเป็นฟังก์ชัน `initApp()` ที่มีความทนทานสูง ทำงานควบคู่กับ `DOMContentLoaded` และมีระบบ Fallback ไปดึงข้อมูลจาก API `/api/config` อัตโนมัติหากข้อมูลฝังล่วงหน้าขาดหาย
       4. ทดสอบผ่าน Headless Edge Browser ยืนยันการแสดงผลครบถ้วน 100% พร้อมตรวจพบ `captured_errors: []` (0 ข้อผิดพลาด)
+14. **การยกเครื่องสถาปัตยกรรมและดีไซน์เว็บพอร์ทัลสไตล์ Apple & macOS (ตุลาคม 2026):**
+    * **แยกโครงสร้างโปรเจกต์เป็นระเบียบ (`web/backend/` และ `web/frontend/`):**
+      * แยกไฟล์ยักษ์ 2,120 บรรทัดเดิม ออกเป็นโมดูลอิสระ:
+        - `web/backend/server.py`: เซิร์ฟเวอร์ `ThreadingHTTPServer` รองรับการประมวลผลคู่ขนานแบบ Multi-threaded
+        - `web/backend/config_service.py`: บริการจัดการตารางยาและ SFTP ซิงค์ขึ้น Pi
+        - `web/backend/face_service.py`: บริการแกลเลอรีรูปถ่าย, การลบรูป และสั่ง Rebuild โมเดล AI บน Pi
+        - `web/backend/wifi_service.py`: บริการสแกนและตั้งค่า Wi-Fi ของบอร์ด Pi
+        - `web/backend/network_utils.py`: ระบบค้นหา IP และ mDNS Cache 60 วินาที
+        - `web/frontend/`: โฟลเดอร์หน้าบ้าน (HTML, CSS, JS Modules, Assets) แยกไฟล์จริง ป้องกันบั๊กการ Escape สตริงใน Python ตลอดไป
+      * คงไฟล์ [`web_manager.py`](file:///c:/Users/TC10/Documents/GitHub/Rice-cooker-projects/web_manager.py) เป็น Entrypoint ทำให้ไฟล์ Batch [`7-Manage-Meds-And-Faces.bat`](file:///c:/Users/TC10/Documents/GitHub/Rice-cooker-projects/7-Manage-Meds-And-Faces.bat) เดิมทำงานได้ 100%
+    * **ดีไซน์ Apple / macOS Minimalist (ห้ามมีขอบกล่องหนา - Borderless & Elevation):**
+      * ยกเลิกขอบกล่องหนา (`border-2`, `border-l-[6px]`) เปลี่ยนเป็นพื้นผิวนุ่มนวล (Tonal Depth) และกระจกฝ้า Frosted Glass (`backdrop-blur-xl`)
+      * ใช้ **macOS Segmented Switcher** สำหรับสลับสมาชิกครอบครัวด้วยรางมนและปุ่มเลื่อนสีขาวนุ่มนวล
+      * ตารางยาจัดวางตามแนวทาง **Apple Health** แยกหมวดก่อนอาหาร/หลังอาหารด้วยเฉดสีบรรยากาศ ไม่ใช้เส้นขอบแข็ง
+      * การ์ดยาแบบ **Medication Capsule Tile** สไตล์พรีเมียม แสดงจุดและป้ายสีซองยาในโทนสีพาสเทลสบายตา
+    * **ขจัดคำศัพท์ AI-Slop ทั้งหมด:**
+      * ใช้ภาษาไทยที่อบอุ่น เรียบง่าย ตรงไปตรงมา เข้าใจง่ายสำหรับผู้สูงอายุและลูกหลาน
+    * **ศูนย์กลางชุดสีและสถานะ (`theme.js` & `state.js`):**
+      * รวม Token สีซองยา (ชมพู, เขียว, ฟ้า, เหลือง, ส้ม, แดง, ม่วง, ช่องเก็บยา) ไว้ที่เดียว ไร้การ Hardcode ซ้ำซ้อน
 
 
 

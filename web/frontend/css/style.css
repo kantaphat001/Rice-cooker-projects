@@ -1,0 +1,190 @@
+/* 
+  Smart Rice Cooker - Apple / macOS Minimalist Design System
+  Borderless, Frosted Glass, Tonal Depth, and Refined Typography
+*/
+
+:root {
+  --apple-bg: #F8FAFC;
+  --apple-surface: #FFFFFF;
+  --apple-surface-muted: #F1F5F9;
+  --apple-text-primary: #0F172A;
+  --apple-text-secondary: #64748B;
+  --apple-text-muted: #94A3B8;
+  --apple-accent: #10B981;
+  --apple-accent-hover: #059669;
+  --apple-accent-light: #ECFDF5;
+  
+  --apple-radius-sm: 10px;
+  --apple-radius-md: 16px;
+  --apple-radius-lg: 24px;
+  --apple-radius-full: 9999px;
+  
+  --apple-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.03);
+  --apple-shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.05);
+  --apple-shadow-lg: 0 16px 40px -8px rgba(0, 0, 0, 0.08);
+  --apple-shadow-modal: 0 25px 60px -15px rgba(0, 0, 0, 0.2);
+  
+  --apple-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+  background-color: var(--apple-bg);
+  color: var(--apple-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* Glassmorphism Frosted Materials (macOS Toolbar & Sheets) */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--apple-shadow-sm);
+  transition: transform 0.2s var(--apple-ease), box-shadow 0.2s var(--apple-ease);
+}
+
+.glass-card:hover {
+  box-shadow: var(--apple-shadow-md);
+}
+
+.glass-sheet {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  box-shadow: var(--apple-shadow-modal);
+}
+
+/* Borderless Tonal Surfaces */
+.surface-tonal {
+  background-color: var(--apple-surface-muted);
+}
+
+.surface-hover {
+  transition: background-color 0.15s ease, transform 0.15s var(--apple-ease);
+}
+
+.surface-hover:hover {
+  background-color: #E2E8F0;
+}
+
+.surface-hover:active {
+  transform: scale(0.98);
+}
+
+/* macOS Segmented Control Track */
+.segmented-track {
+  background: rgba(148, 163, 184, 0.14);
+  padding: 4px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.segmented-pill {
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--apple-text-secondary);
+  transition: all 0.22s var(--apple-ease);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.segmented-pill.active {
+  background: #FFFFFF;
+  color: var(--apple-text-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Apple Pulse Glow Dot (Live Pi Status) */
+.glowing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.glowing-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.4;
+  animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  50% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+
+/* Apple Medication Capsule Tile */
+.med-capsule-tile {
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #FFFFFF;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s var(--apple-ease);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.med-capsule-tile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* Hide scrollbar while allowing smooth touch scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth modal sheet transitions */
+.modal-backdrop {
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.25s var(--apple-ease);
+}
+
+/* Elderly-friendly button touch target */
+.apple-button {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.18s var(--apple-ease);
+}
+
+.apple-button:active {
+  transform: scale(0.97);
+}
+
+/* Mobile Safe Areas */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  }
+}
