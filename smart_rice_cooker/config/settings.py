@@ -51,8 +51,11 @@ SFACE_MODEL_FILE = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
 FACE_DETECTION_CONFIDENCE = 0.80
 FACE_RECOGNITION_THRESHOLD = 0.85  # Cosine similarity for family matching
 
-# Audio & Thai TTS
-VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Voice
+# Audio & Thai TTS (Elderly-Friendly Tuning)
+VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Voice (Premwadee)
+VOICE_RATE = os.getenv("VOICE_RATE", "-10%")                   # Slower rate (-10%) for clear articulation
+CHIME_FILE = AUDIO_CACHE_DIR / "chime.mp3"                     # Soft pre-announcement chime
+PLAY_CHIME_BEFORE_SPEECH = True                                # Play gentle chime before speaking
 AUDIO_PLAYER_CMD = os.getenv("AUDIO_PLAYER_CMD", "mpg123 -q")
 
 # State & Cooldowns

@@ -124,7 +124,7 @@ def main():
     except Exception:
         pass
 
-    audio_pattern = re.compile(r'Playing:\s*([a-zA-Z0-9_\-\.]+?\.mp3)', re.IGNORECASE)
+    audio_pattern = re.compile(r'Playing(?:\s+chime)?:\s*([a-zA-Z0-9_\-\.]+?\.mp3)', re.IGNORECASE)
     line_buf = ""
 
     try:

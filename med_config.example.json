@@ -12,6 +12,7 @@
             {
               "name": "ยาโรคกระเพาะ",
               "dosage": "1 เม็ด (ก่อนอาหาร 30 นาที)",
+              "color_tag": "ซองสีฟ้า",
               "image": "images/meds/gastric.jpg"
             }
           ],
@@ -19,11 +20,13 @@
             {
               "name": "ยาลดความดัน",
               "dosage": "1 เม็ด",
+              "color_tag": "ซองสีเขียว",
               "image": "images/meds/blood_pressure.jpg"
             },
             {
               "name": "ยาบำรุงหัวใจ",
               "dosage": "1 เม็ด",
+              "color_tag": "ซองสีชมพู",
               "image": "images/meds/heart.jpg"
             }
           ]

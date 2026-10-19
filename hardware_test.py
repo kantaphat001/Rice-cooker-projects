@@ -162,36 +162,44 @@ print('[+] จบการทดสอบ Ultrasonic')
             run_remote_python(ssh, code)
 
         elif choice == "3":
-            print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทย...")
+            print("\n[*] กำลังทดสอบส่งเสียงพูดภาษาไทยสไตล์ลูกหลาน (ช้า ชัด นุ่มนวล พร้อมเสียงกระดิ่งนำร่อง)...")
             print("[*] (ระบบจะเล่นออกทั้งลำโพงของ Raspberry Pi และลำโพงของคอมพิวเตอร์ Windows)")
             code = """
 from smart_rice_cooker.voice.tts_engine import TTSEngine
 from smart_rice_cooker.voice.audio_player import AudioPlayer
 from smart_rice_cooker.config import settings
 
-tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.VOICE_NAME)
+tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.VOICE_NAME, rate=settings.VOICE_RATE)
 player = AudioPlayer(settings.AUDIO_PLAYER_CMD)
 
-test_phrase = 'ทดสอบระบบเสียงภาษาไทย หม้อหุงข้าวอัจฉริยะพร้อมใช้งานแล้วค่ะ ขอให้ทานข้าวให้อร่อยและสุขภาพแข็งแรงนะคะ'
+test_phrase = 'สวัสดีค่ะคุณยาย ตอนนี้ถึงเวลาข้าวเที่ยงแล้วนะคะ มื้อนี้มียาลดความดัน ซองสีเขียว 1 เม็ด ทานหลังอาหารค่ะ ขอให้ทานข้าวให้อร่อย ทานให้อิ่มนะคะ และอย่าลืมดื่มน้ำตามเยอะๆ ค่ะ'
 print(f'[*] กำลังพูด: {test_phrase}')
 path = tts.synthesize(test_phrase)
 if path:
+    print('PLAYING_CHIME:chime.mp3')
     print(f'PLAYING_AUDIO_FILE:{path.name}')
-    player.play_file(path, blocking=False)
+    player.play_with_chime(path, chime_path=settings.CHIME_FILE, blocking=False)
 print('[+] ประมวลผลและทดสอบเสียงบน Pi เสร็จสมบูรณ์!')
 """
             out = run_remote_python(ssh, code)
-            m = re.search(r'PLAYING_AUDIO_FILE:([a-zA-Z0-9_\-\.]+?\.mp3)', out)
-            if m:
-                audio_file = m.group(1)
-                print(f"\n[+] 🔊 กำลังเล่นเสียงออกลำโพงของคอมพิวเตอร์ (Windows PC Speakers)...")
-                try:
-                    sftp = ssh.open_sftp()
+            import re
+            m_chime = re.search(r'PLAYING_CHIME:([a-zA-Z0-9_\-\.]+?\.mp3)', out)
+            m_audio = re.search(r'PLAYING_AUDIO_FILE:([a-zA-Z0-9_\-\.]+?\.mp3)', out)
+            try:
+                sftp = ssh.open_sftp()
+                if m_chime:
+                    chime_file = m_chime.group(1)
+                    print(f"\n[+] 🔔 กำลังเล่นเสียงกระดิ่งนำร่อง '{chime_file}' ผ่านลำโพงคอมพิวเตอร์...")
+                    play_cached_file(chime_file, sftp=sftp, blocking=True)
+                    time.sleep(0.3)
+                if m_audio:
+                    audio_file = m_audio.group(1)
+                    print(f"[+] 🔊 กำลังเล่นเสียงพูดภาษาไทย (สปีด -10%) '{audio_file}' ผ่านลำโพงคอมพิวเตอร์...")
                     play_cached_file(audio_file, sftp=sftp, blocking=True)
-                    sftp.close()
-                    print("[+] 🔊 เล่นเสียงภาษาไทยผ่านลำโพงของคอมพิวเตอร์เสร็จสิ้นเรียบร้อยแล้ว!")
-                except Exception as e:
-                    print(f"[!] เล่นเสียงบนคอมพิวเตอร์ขัดข้อง: {e}")
+                sftp.close()
+                print("[+] 🔊 เล่นเสียงสไตล์ลูกหลานผ่านลำโพงของคอมพิวเตอร์เสร็จสิ้นเรียบร้อยแล้ว!")
+            except Exception as e:
+                print(f"[!] เล่นเสียงบนคอมพิวเตอร์ขัดข้อง: {e}")
 
         elif choice == "4":
             was_paused = pause_service_if_active(ssh)

@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..config.settings import AUDIO_CACHE_DIR, VOICE_NAME
+from ..config.settings import AUDIO_CACHE_DIR, VOICE_NAME, VOICE_RATE
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +22,19 @@ except ImportError:
     logger.warning("[TTS] edge-tts not available. Voice synthesis will use cache only.")
 
 class TTSEngine:
-    def __init__(self, cache_dir: Path = AUDIO_CACHE_DIR, voice: str = VOICE_NAME):
+    def __init__(self, cache_dir: Path = AUDIO_CACHE_DIR, voice: str = VOICE_NAME, rate: str = VOICE_RATE):
         self.cache_dir = Path(cache_dir)
         self.voice = voice
+        self.rate = rate
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def get_audio_path_for_text(self, text: str) -> Path:
-        """Computes deterministic cache filename based on text MD5."""
-        text_hash = hashlib.md5(f"{self.voice}:{text}".encode("utf-8")).hexdigest()
+        """Computes deterministic cache filename based on text, voice, and rate MD5."""
+        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{text}".encode("utf-8")).hexdigest()
         return self.cache_dir / f"{text_hash}.mp3"
 
     async def _generate_async(self, text: str, output_path: Path):
-        communicate = edge_tts.Communicate(text, self.voice)
+        communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
         await communicate.save(str(output_path))
 
     def synthesize(self, text: str) -> Optional[Path]:

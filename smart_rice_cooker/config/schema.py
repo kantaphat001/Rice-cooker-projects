@@ -13,6 +13,8 @@ try:
         name: str
         dosage: str
         image: Optional[str] = None
+        color_tag: Optional[str] = None         # e.g. "ซองสีเขียว", "ช่องสีฟ้า"
+        instructions: Optional[str] = None      # e.g. "ทานพร้อมน้ำอุ่น 1 แก้ว"
 
     class ScheduleSlot(BaseModel):
         label: str
@@ -37,6 +39,8 @@ except ImportError:
         name: str
         dosage: str
         image: Optional[str] = None
+        color_tag: Optional[str] = None
+        instructions: Optional[str] = None
 
     @dataclass
     class ScheduleSlot:
