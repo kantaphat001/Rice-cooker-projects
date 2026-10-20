@@ -123,7 +123,7 @@ export function setupAuxiliaryModals() {
             <input type="text" id="input-new-member-id" placeholder="เช่น grandma, fah (ห้ามเว้นวรรค)" required pattern="[a-zA-Z0-9_-]+" class="w-full bg-slate-100/70 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">เสียงทักทายตอนเปิดหม้อหุงข้าว:</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">เสียงทักทายเมื่อเดินเข้ามาใกล้เครื่องเตือนยา:</label>
             <input type="text" id="input-new-member-greeting" placeholder="เช่น สวัสดีครับคุณยาย วันนี้อย่าลืมทานยานะครับ" class="w-full bg-slate-100/70 border-none rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500">
           </div>
 

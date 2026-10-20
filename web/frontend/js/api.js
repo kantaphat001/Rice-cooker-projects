@@ -164,7 +164,7 @@ export async function captureFaceFromPi(memberId) {
     const data = await res.json();
     if (data.success) {
       await fetchMemberFaces(memberId);
-      showToast('ถ่ายรูปจากกล้องหม้อหุงข้าวสำเร็จ', 'success');
+      showToast('ถ่ายรูปจากกล้องเครื่องเตือนยาสำเร็จ', 'success');
       return true;
     }
     throw new Error(data.error || 'กล้องไม่ตอบสนอง');

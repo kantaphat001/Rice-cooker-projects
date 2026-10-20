@@ -31,8 +31,9 @@ class TTSPrecompiler:
             except Exception as e:
                 logger.warning(f"[TTS Precompiler] Skip error: {e}")
 
-        # 1. Precompile unknown visitor
+        # 1. Precompile system-wide messages
         _safe_synth(ThaiPhraseBuilder.build_unknown_visitor_message())
+        _safe_synth(ThaiPhraseBuilder.build_acknowledge_confirmation_message())
 
         # 2. Precompile member phrases
         for member_id, member_info in members.items():

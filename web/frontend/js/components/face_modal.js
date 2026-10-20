@@ -26,7 +26,7 @@ export function setupFaceModal() {
               <span>🖼️ คลังรูปถ่ายใบหน้า AI:</span>
               <span id="face-modal-member-name" class="text-emerald-700"></span>
             </h3>
-            <p class="text-xs text-slate-500">ใช้สำหรับฝึกระบบ AI จดจำใบหน้าสมาชิกข้างหม้อหุงข้าว</p>
+            <p class="text-xs text-slate-500">ใช้สำหรับฝึกระบบ AI จดจำใบหน้าสมาชิกประจำบ้าน</p>
           </div>
           <button id="btn-close-face-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
             ✕
@@ -42,7 +42,7 @@ export function setupFaceModal() {
             <span>📱 ถ่ายรูปจากมือถือ</span>
           </button>
           <button id="tab-btn-camera" class="segmented-pill">
-            <span>📷 กล้องหม้อหุงข้าว</span>
+            <span>📷 กล้องเครื่องเตือนยา</span>
           </button>
         </div>
 
@@ -54,7 +54,7 @@ export function setupFaceModal() {
           <div id="face-gallery-empty" class="text-center py-12 text-slate-400 hidden">
             <p class="text-3xl mb-2">📸</p>
             <p class="text-sm font-semibold">ยังไม่มีรูปถ่ายใบหน้าของสมาชิกท่านนี้</p>
-            <p class="text-xs mt-1">กดแท็บ "ถ่ายรูปจากมือถือ" หรือ "กล้องหม้อหุงข้าว" เพื่อเริ่มบันทึก</p>
+            <p class="text-xs mt-1">กดแท็บ "ถ่ายรูปจากมือถือ" หรือ "กล้องเครื่องเตือนยา" เพื่อเริ่มบันทึก</p>
           </div>
         </div>
 
@@ -89,9 +89,9 @@ export function setupFaceModal() {
               🤖
             </div>
             <div>
-              <h4 class="font-bold text-slate-800 text-base">สั่งถ่ายรูปผ่านกล้องหม้อหุงข้าว</h4>
+              <h4 class="font-bold text-slate-800 text-base">สั่งถ่ายรูปผ่านกล้องเครื่องเตือนยา</h4>
               <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                ให้คุณตาคุณยายยืนอยู่หน้ากล้องของหม้อหุงข้าว แล้วกดปุ่มด้านล่างเพื่อถ่ายรูปทันที
+                ให้คุณตาคุณยายยืนอยู่หน้ากล้องเครื่องเตือนยา แล้วกดปุ่มด้านล่างเพื่อถ่ายรูปทันที
               </p>
             </div>
 
@@ -100,7 +100,7 @@ export function setupFaceModal() {
             </button>
 
             <div id="pi-camera-status-box" class="hidden text-xs text-slate-600 font-medium">
-              ⏳ กำลังสั่งกล้องหม้อหุงข้าวถ่ายรูป...
+              ⏳ กำลังสั่งกล้องเครื่องเตือนยาถ่ายรูป...
             </div>
           </div>
         </div>

@@ -18,7 +18,7 @@ export function setupWifiModal() {
         <!-- Header -->
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
-            <h3 class="text-lg font-bold text-slate-800">ตั้งค่า Wi-Fi หม้อหุงข้าว</h3>
+            <h3 class="text-lg font-bold text-slate-800">ตั้งค่า Wi-Fi เครื่องเตือนยา</h3>
             <p class="text-xs text-slate-500">บันทึก Wi-Fi บ้านใหม่ หรือฮอตสปอตมือถือล่วงหน้าได้</p>
           </div>
           <button id="btn-close-wifi-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
@@ -29,7 +29,7 @@ export function setupWifiModal() {
         <!-- Current Connection Card -->
         <div class="rounded-2xl p-4 bg-slate-50/70 border border-slate-100 flex items-center justify-between">
           <div>
-            <span class="text-xs text-slate-500 font-medium">Wi-Fi ปัจจุบันของหม้อหุงข้าว:</span>
+            <span class="text-xs text-slate-500 font-medium">Wi-Fi ปัจจุบันของเครื่องเตือนยา:</span>
             <div id="wifi-current-name" class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-1.5 mt-0.5">
               <span>กำลังตรวจสอบ...</span>
             </div>
@@ -59,7 +59,7 @@ export function setupWifiModal() {
           <div id="wifi-status-feedback" class="text-xs p-3 rounded-xl hidden"></div>
 
           <button type="submit" id="btn-submit-wifi" class="apple-button w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-xs">
-            💾 บันทึกลงหม้อหุงข้าว
+            💾 บันทึกลงเครื่องเตือนยา
           </button>
         </form>
       </div>
@@ -130,17 +130,17 @@ export function setupWifiModal() {
     if (!ssid) return;
 
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ กำลังบันทึกลงหม้อหุงข้าว...';
+    submitBtn.textContent = '⏳ กำลังบันทึกลงเครื่องเตือนยา...';
     statusFeedback.className = 'text-xs p-3 rounded-xl bg-sky-50 text-sky-800 block';
-    statusFeedback.textContent = `กำลังเชื่อมต่อและบันทึก '${ssid}' เข้าหม้อหุงข้าว (ใช้เวลาประมาณ 10 วินาที)...`;
+    statusFeedback.textContent = `กำลังเชื่อมต่อและบันทึก '${ssid}' เข้าเครื่องเตือนยา (ใช้เวลาประมาณ 10 วินาที)...`;
 
     const res = await saveWifiNetwork(ssid, pass);
     submitBtn.disabled = false;
-    submitBtn.textContent = '💾 บันทึกลงหม้อหุงข้าว';
+    submitBtn.textContent = '💾 บันทึกลงเครื่องเตือนยา';
 
     if (res.success) {
       statusFeedback.className = 'text-xs p-3 rounded-xl bg-emerald-50 text-emerald-800 block';
-      statusFeedback.textContent = `✅ บันทึก '${ssid}' ลงหม้อหุงข้าวเรียบร้อยแล้ว`;
+      statusFeedback.textContent = `✅ บันทึก '${ssid}' ลงเครื่องเตือนยาเรียบร้อยแล้ว`;
       document.getElementById('wifi-current-name').textContent = ssid;
       showToast(`บันทึก Wi-Fi '${ssid}' สำเร็จ`);
     } else {

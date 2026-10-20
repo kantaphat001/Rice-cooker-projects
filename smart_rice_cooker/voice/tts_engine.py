@@ -19,7 +19,13 @@ try:
     EDGE_TTS_AVAILABLE = True
 except ImportError:
     EDGE_TTS_AVAILABLE = False
-    logger.warning("[TTS] edge-tts not available. Voice synthesis will use cache only.")
+    logger.warning("[TTS] edge-tts not available.")
+
+try:
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
+except ImportError:
+    GTTS_AVAILABLE = False
 
 class TTSEngine:
     def __init__(self, cache_dir: Path = AUDIO_CACHE_DIR, voice: str = VOICE_NAME, rate: str = VOICE_RATE):
@@ -48,14 +54,29 @@ class TTSEngine:
             logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...'")
             return output_path
 
-        if not EDGE_TTS_AVAILABLE:
-            logger.warning(f"[TTS] Cannot synthesize new text offline without edge-tts: '{text}'")
+        if not EDGE_TTS_AVAILABLE and not GTTS_AVAILABLE:
+            logger.warning(f"[TTS] Cannot synthesize new text offline without edge-tts or gTTS: '{text}'")
             return None
 
-        try:
-            logger.info(f"[TTS] Generating speech online for: '{text[:30]}...'")
-            asyncio.run(self._generate_async(text, output_path))
-            return output_path
-        except Exception as e:
-            logger.error(f"[TTS] Synthesis failed: {e}")
-            return None
+        # 1. Try Edge-TTS (Neural Voice - Highest Quality)
+        if EDGE_TTS_AVAILABLE:
+            try:
+                logger.info(f"[TTS] Generating speech with Edge-TTS for: '{text[:30]}...'")
+                asyncio.run(self._generate_async(text, output_path))
+                if output_path.is_file() and output_path.stat().st_size > 0:
+                    return output_path
+            except Exception as e:
+                logger.warning(f"[TTS] Edge-TTS synthesis failed ({e}), checking fallback...")
+
+        # 2. Fallback to gTTS if available
+        if GTTS_AVAILABLE:
+            try:
+                logger.info(f"[TTS] Generating speech with gTTS fallback for: '{text[:30]}...'")
+                tts_inst = gTTS(text=text, lang='th')
+                tts_inst.save(str(output_path))
+                if output_path.is_file() and output_path.stat().st_size > 0:
+                    return output_path
+            except Exception as e:
+                logger.error(f"[TTS] gTTS fallback synthesis failed: {e}")
+
+        return None

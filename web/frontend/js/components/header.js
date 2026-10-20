@@ -18,14 +18,14 @@ export function renderHeader() {
         <!-- Brand / Identity -->
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xl shadow-xs shrink-0">
-            🍚
+            💊
           </div>
           <div class="min-w-0">
             <h1 class="text-base sm:text-lg font-bold text-slate-800 leading-tight truncate">
-              หม้อหุงข้าวอัจฉริยะ
+              เครื่องเตือนทานยาอัจฉริยะ
             </h1>
             <p class="text-xs text-slate-500 truncate hidden sm:block">
-              ระบบเตือนยาและจดจำใบหน้าสมาชิกครอบครัว
+              ระบบดูแลและเตือนการรับประทานยาประจำบ้าน
             </p>
           </div>
         </div>
@@ -35,11 +35,11 @@ export function renderHeader() {
           <!-- Live Pi Connection Pill -->
           <div class="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-xs font-medium text-slate-700">
             <span class="glowing-dot ${hasPi ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
-            <span>${hasPi ? `หม้อหุงข้าว: ${serverInfo.pi_ip}` : 'กำลังค้นหาหม้อหุงข้าว...'}</span>
+            <span>${hasPi ? `เครื่องเตือนยา: ${serverInfo.pi_ip}` : 'กำลังค้นหาเครื่องเตือนยา...'}</span>
           </div>
 
           <!-- Wi-Fi Manager Button -->
-          <button id="btn-open-wifi" class="apple-button px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="ตั้งค่า Wi-Fi กล่องหม้อหุงข้าว">
+          <button id="btn-open-wifi" class="apple-button px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="ตั้งค่า Wi-Fi เครื่องเตือนยา">
             <span>📶</span>
             <span class="hidden sm:inline">Wi-Fi</span>
           </button>

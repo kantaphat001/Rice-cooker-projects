@@ -32,40 +32,63 @@ class ThaiPhraseBuilder:
         return " ".join(parts)
 
     @staticmethod
+    def _clean_greeting(greeting: str) -> str:
+        """Normalizes and polishes greetings to match Premwadee Neural voice tone."""
+        g = (greeting or "").strip()
+        for suffix in ["นะคะ", "นะครับ", "ครับ", "ค่ะ", "คะ"]:
+            if g.endswith(suffix):
+                g = g[:-len(suffix)].strip()
+                break
+        if not g:
+            return "สวัสดีค่ะ"
+        if not g.startswith("สวัสดี"):
+            g = f"สวัสดีค่ะ{g}"
+        elif not g.startswith("สวัสดีค่ะ"):
+            if g.startswith("สวัสดีครับ"):
+                g = "สวัสดีค่ะ" + g[10:].strip()
+            elif g.startswith("สวัสดี"):
+                g = "สวัสดีค่ะ" + g[6:].strip()
+        return g
+
+    @staticmethod
     def build_full_meal_announcement(greeting: str, slot_label: str, before_meds: List[Dict], after_meds: List[Dict]) -> str:
-        """Constructs a warm, comprehensive meal announcement."""
-        # e.g. "สวัสดีค่ะคุณยาย ตอนนี้ถึงมื้อเที่ยงแล้วนะคะ"
-        clean_greeting = greeting.rstrip("ครับ").rstrip("ค่ะ").strip()
-        parts = [f"{clean_greeting}ค่ะ ตอนนี้ถึง{slot_label}แล้วนะคะ"]
+        """Constructs a warm, polite, and elegant meal announcement."""
+        g = ThaiPhraseBuilder._clean_greeting(greeting)
+        parts = [f"{g} ตอนนี้ได้เวลาสำหรับ{slot_label}แล้วนะคะ เครื่องเตือนทานยาขออนุญาตแจ้งรายการยานะคะ"]
 
         if before_meds:
             med_descriptions = [ThaiPhraseBuilder._format_med_item(m) for m in before_meds]
-            parts.append(f"มื้อนี้มียาทานก่อนอาหาร คือ {' และ '.join(med_descriptions)} นะคะ")
+            parts.append(f"มื้อนี้ มียาที่ต้องรับประทานก่อนอาหาร คือ {' และ '.join(med_descriptions)} ค่ะ")
 
         if after_meds:
             med_descriptions = [ThaiPhraseBuilder._format_med_item(m) for m in after_meds]
-            parts.append(f"และหลังจากทานข้าวอิ่มแล้ว อย่าลืมทาน {' และ '.join(med_descriptions)} ด้วยนะคะ")
+            parts.append(f"และหลังจากรับประทานอาหารอิ่มเรียบร้อยแล้ว อย่าลืมรับประทานยาหลังอาหาร {' และ '.join(med_descriptions)} ด้วยนะคะ")
 
-        parts.append("ขอให้ทานข้าวให้อร่อย ทานให้อิ่มนะคะ และอย่าลืมดื่มน้ำตามเยอะๆ ค่ะ")
+        parts.append("ขอให้รับประทานอาหารให้อร่อย สุขภาพแข็งแรง และอย่าลืมดื่มน้ำตามให้เพียงพอนะคะ")
         return " ".join(parts)
 
     @staticmethod
     def build_unacknowledged_followup(display_name: str) -> str:
         """Polite follow-up reminder if user enters proximity during cooldown."""
-        return f"{display_name}คะ อย่าลืมทานยาตามเวลาที่จัดไว้นะคะ จะได้แข็งแรงและสุขภาพดีค่ะ"
+        return f"{display_name}คะ เครื่องเตือนทานยาขออนุญาตเตือนนะคะ อย่าลืมรับประทานยาตามเวลา เพื่อสุขภาพร่างกายที่แข็งแรงสมบูรณ์นะคะ"
 
     @staticmethod
     def build_already_taken_message(display_name: str) -> str:
         """Reassuring confirmation message ensuring elderly user doesn't double-dose."""
-        return f"{display_name}ทานยามื้อนี้เรียบร้อยแล้วนะคะ เก่งมากเลยค่ะ ไม่ต้องทานซ้ำแล้วนะคะ ขอให้พักผ่อนสบายๆ และดื่มน้ำเยอะๆ ค่ะ"
+        return f"{display_name}รับประทานยามื้อนี้เรียบร้อยแล้วค่ะ สบายใจได้นะคะ ไม่ต้องรับประทานซ้ำแล้วค่ะ ขอให้พักผ่อนอย่างมีความสุขและมีสุขภาพที่แข็งแรงเสมอนะคะ"
 
     @staticmethod
     def build_no_meds_message(greeting: str) -> str:
         """Peace-of-mind greeting when no meds are required for current slot."""
-        clean_greeting = greeting.rstrip("ครับ").rstrip("ค่ะ").strip()
-        return f"{clean_greeting}คะ มื้อนี้ไม่มีรายการยาที่ต้องทานค่ะ ทานข้าวให้อร่อยและอิ่มหนำสำราญนะคะ"
+        g = ThaiPhraseBuilder._clean_greeting(greeting)
+        return f"{g} สำหรับมื้อนี้ ไม่มีรายการยาที่ต้องรับประทานค่ะ ขอให้รับประทานอาหารให้อร่อยและมีความสุขในมื้อนี้นะคะ"
 
     @staticmethod
     def build_unknown_visitor_message() -> str:
-        """Warm welcome to visitors."""
-        return "สวัสดีค่ะ หม้อหุงข้าวอัจฉริยะยินดีต้อนรับค่ะ ขอให้มีความสุขในมื้ออาหารนะคะ"
+        """Warm, welcoming greeting to family visitors."""
+        return "สวัสดีค่ะ เครื่องเตือนทานยาอัจฉริยะยินดีต้อนรับค่ะ ขอให้มีความสุข สดชื่นแจ่มใส และมีสุขภาพร่างกายที่แข็งแรงในทุกๆ วันนะคะ"
+
+    @staticmethod
+    def build_acknowledge_confirmation_message() -> str:
+        """Polite confirmation when medication acknowledgement is recorded."""
+        return "เครื่องเตือนทานยาบันทึกข้อมูลเรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"

@@ -65,7 +65,7 @@ class NativeElderlyGUI:
 
         self.title_label = tk.Label(
             self.header_frame,
-            text="หม้อหุงข้าวเตือนกินยาอัจฉริยะ",
+            text="เครื่องเตือนทานยาอัจฉริยะ",
             font=("Arial", 28, "bold"),
             fg="#EDF2F4",
             bg="#2B2D42"
@@ -87,7 +87,7 @@ class NativeElderlyGUI:
 
         self.greeting_label = tk.Label(
             self.content_frame,
-            text="สวัสดีครับ สมาชิกครอบครัว",
+            text="สวัสดีค่ะ สมาชิกครอบครัว",
             font=("Arial", 36, "bold"),
             fg="#FFD166",
             bg="#1E1E24"
@@ -103,7 +103,7 @@ class NativeElderlyGUI:
 
         self.ack_button = tk.Button(
             self.bottom_frame,
-            text="✅ กดตรงนี้เมื่อทานยาแล้ว (ปุ่มยืนยัน)",
+            text="✅ กดตรงนี้เมื่อรับประทานยาแล้ว (ปุ่มยืนยัน)",
             font=("Arial", 26, "bold"),
             bg="#06D6A0",
             fg="#073B4C",
@@ -147,16 +147,16 @@ class NativeElderlyGUI:
 
                 elif msg_type == "meds":
                     display_name, slot_label, meds_list = payload
-                    self.greeting_label.config(text=f"สวัสดีครับ {display_name} ({slot_label})")
+                    self.greeting_label.config(text=f"สวัสดีค่ะ {display_name} ({slot_label})")
                     self._render_meds(meds_list)
 
                 elif msg_type == "already_taken":
                     display_name = payload
-                    self.greeting_label.config(text=f"ทานยามื้อนี้เรียบร้อยแล้ว ({display_name})")
+                    self.greeting_label.config(text=f"รับประทานยามื้อนี้เรียบร้อยแล้ว ({display_name})")
                     self._clear_meds()
                     lbl = tk.Label(
                         self.med_list_frame,
-                        text="🎉 ทานยามื้อนี้ครบแล้ว ดื่มน้ำเยอะๆ และพักผ่อนให้สบายนะครับ",
+                        text="🎉 รับประทานยามื้อนี้เรียบร้อยแล้ว ดื่มน้ำเยอะๆ และพักผ่อนให้สบายนะคะ",
                         font=("Arial", 28, "bold"),
                         fg="#06D6A0",
                         bg="#1E1E24"
@@ -165,7 +165,7 @@ class NativeElderlyGUI:
 
                 elif msg_type == "standby":
                     self.status_badge.config(text="🔴 โหมดเตรียมพร้อม (รอตรวจจับคนเดินมาใกล้)", fg="#EF233C")
-                    self.greeting_label.config(text="สวัสดีครับ สมาชิกครอบครัว")
+                    self.greeting_label.config(text="สวัสดีค่ะ สมาชิกครอบครัว")
                     self._clear_meds()
 
             except queue.Empty:

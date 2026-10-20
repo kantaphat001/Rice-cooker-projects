@@ -242,7 +242,7 @@ class CompanionService:
             if self.gui:
                 self.gui.show_already_taken(display_name)
 
-            ack_text = "บันทึกข้อมูลการทานยาเรียบร้อยแล้วครับ ขอบคุณครับ"
+            ack_text = ThaiPhraseBuilder.build_acknowledge_confirmation_message()
             audio_path = self.tts.synthesize(ack_text)
             if audio_path:
                 self.player.play_file(audio_path)

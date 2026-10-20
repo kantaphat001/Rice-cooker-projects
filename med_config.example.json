@@ -2,7 +2,7 @@
   "members": {
     "grandpa": {
       "display_name": "คุณตา",
-      "voice_greeting": "สวัสดีครับคุณตา",
+      "voice_greeting": "สวัสดีค่ะคุณตา",
       "schedules": {
         "morning": {
           "label": "มื้อเช้า",

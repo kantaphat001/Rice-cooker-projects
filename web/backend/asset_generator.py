@@ -90,9 +90,9 @@ ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" widt
 </svg>"""
 
 MANIFEST_JSON: Dict[str, Any] = {
-    "name": "Smart Rice Cooker - ระบบเตือนยาหม้อหุงข้าว",
+    "name": "Smart Med Reminder - เครื่องเตือนทานยาอัจฉริยะ",
     "short_name": "เตือนยา",
-    "description": "ระบบจัดการตารางยาและใบหน้าสมาชิกครอบครัวข้างหม้อหุงข้าว สำหรับผู้สูงอายุ",
+    "description": "ระบบจัดการตารางยาและใบหน้าสมาชิกครอบครัว สำหรับผู้สูงอายุ",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
