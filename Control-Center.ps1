@@ -46,6 +46,7 @@ function Show-Menu {
     Write-Host "  [13] USB Hardware Scan   (สแกนพอร์ต USB/Serial) [16] Wi-Fi and Ping Check(ทดสอบสัญญาณเน็ต)" -ForegroundColor White
     Write-Host "  [14] Test USB Camera     (ทดสอบกล้องเว็บแคม)    [17] Python and uv Status(ตรวจเวอร์ชัน Python)" -ForegroundColor White
     Write-Host "  [15] Test Audio Speaker  (ทดสอบเสียงลำโพง)      [18] Emergency Port Fix (รีเซ็ตวงจร USB)" -ForegroundColor White
+    Write-Host "  [19] Test System Integration (ทดสอบเชื่อมโยงข้อมูลเว็บ และซิงค์ไปยัง Pi)" -ForegroundColor Green
     Write-Host "----------------------------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  [R] Safe Reboot    [S] Safe Shutdown    [0] Exit (ออกจากโปรแกรม)" -ForegroundColor Yellow
     Write-Host "========================================================================================" -ForegroundColor Cyan
@@ -54,7 +55,7 @@ function Show-Menu {
 while ($true) {
     $pi_host = Get-PiHost
     Show-Menu
-    $choice = Read-Host "เลือกคำสั่ง (1-18, R, S, 0)"
+    $choice = Read-Host "เลือกคำสั่ง (1-19, R, S, 0)"
     
     switch ($choice.ToUpper()) {
         "1" {
@@ -218,6 +219,15 @@ while ($true) {
             ssh -t -o StrictHostKeyChecking=no "$pi_user@$pi_host" "sudo udevadm control --reload-rules && sudo udevadm trigger && echo '[+] Udev triggered successfully!'"
             Write-Host "[+] รีเซ็ตพอร์ต USB เรียบร้อยแล้ว!" -ForegroundColor Green
             Start-Sleep -Seconds 2
+        }
+        "19" {
+            Clear-Host
+            Write-Host "================================================================================" -ForegroundColor Cyan
+            Write-Host "    ทดสอบการเชื่อมโยงระบบ (เว็บแมนเนจเจอร์ <-> ตารางยา <-> บอร์ด Pi)" -ForegroundColor Green
+            Write-Host "================================================================================" -ForegroundColor Cyan
+            python (Join-Path $project_dir "test_integration.py")
+            Write-Host "`nกด Enter เพื่อกลับสู่เมนูหลัก..." -ForegroundColor Gray
+            Read-Host
         }
         "R" {
             $confirm = Read-Host "ต้องการสั่ง Safe Reboot บอร์ด $pi_host ใช่หรือไม่? (y/n)"

@@ -17,6 +17,7 @@ class MedicationRepository:
         self.config_path = Path(config_path)
         self.example_path = Path(example_path)
         self._data: Dict[str, Any] = {}
+        self._last_mtime: float = 0.0
         self.reload()
 
     def reload(self):
@@ -24,9 +25,11 @@ class MedicationRepository:
         if not target.is_file():
             logger.error(f"[MedRepo] Neither {self.config_path} nor {self.example_path} exists!")
             self._data = {"members": {}}
+            self._last_mtime = 0.0
             return
 
         try:
+            self._last_mtime = target.stat().st_mtime
             with open(target, "r", encoding="utf-8") as f:
                 self._data = json.load(f)
             logger.info(f"[MedRepo] Successfully loaded medication config from {target.name}")
@@ -34,8 +37,21 @@ class MedicationRepository:
             logger.error(f"[MedRepo] Failed to parse JSON configuration from {target}: {e}")
             self._data = {"members": {}}
 
+    def _check_reload(self):
+        target = self.config_path if self.config_path.is_file() else self.example_path
+        if target.is_file():
+            try:
+                mtime = target.stat().st_mtime
+                if mtime != self._last_mtime:
+                    logger.info("[MedRepo] Detected med_config.json update, reloading automatically...")
+                    self.reload()
+            except Exception:
+                pass
+
     def get_member(self, member_id: str) -> Dict[str, Any]:
+        self._check_reload()
         return self._data.get("members", {}).get(member_id, {})
 
     def get_all_members(self) -> Dict[str, Any]:
+        self._check_reload()
         return self._data.get("members", {})
