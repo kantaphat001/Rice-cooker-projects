@@ -28,7 +28,9 @@ def _powershell_play(abs_path: str):
         f"  Start-Sleep -Seconds $duration "
         f"}} else {{ "
         f"  Start-Sleep -Seconds 4 "
-        f"}}"
+        f"}}; "
+        f"$player.Close(); "
+        f"exit 0"
     )
     try:
         subprocess.run(

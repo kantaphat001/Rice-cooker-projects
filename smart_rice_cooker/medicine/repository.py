@@ -50,7 +50,14 @@ class MedicationRepository:
 
     def get_member(self, member_id: str) -> Dict[str, Any]:
         self._check_reload()
-        return self._data.get("members", {}).get(member_id, {})
+        members = self._data.get("members", {})
+        if member_id in members:
+            return members[member_id]
+        # Case-insensitive fallback
+        for k, v in members.items():
+            if k.lower() == str(member_id).lower():
+                return v
+        return {}
 
     def get_all_members(self) -> Dict[str, Any]:
         self._check_reload()

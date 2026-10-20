@@ -101,7 +101,9 @@ class LEDController:
                 self.green.off()
             time.sleep(0.2)
 
-        self.set_standby()
+        # Keep green on while announcing; state machine will return to set_standby() (Red ON) on completion
+        if not self._is_mock:
+            self.green.on()
 
     def close(self):
         try:

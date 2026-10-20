@@ -32,9 +32,9 @@ PIN_ULTRASONIC_TRIG = int(os.getenv("PIN_ULTRASONIC_TRIG", 23)) # Pin 16 - HC-SR
 PIN_ULTRASONIC_ECHO = int(os.getenv("PIN_ULTRASONIC_ECHO", 24)) # Pin 18 - HC-SR04 Echo
 PIN_ULTRASONIC_OUT = int(os.getenv("PIN_ULTRASONIC_OUT", 24))   # Pin 18 - US-016 OUT (if used)
 
-# Ultrasonic Thresholds
-DISTANCE_TRIGGER_CM = float(os.getenv("DISTANCE_TRIGGER_CM", 70.0))
-DISTANCE_HYSTERESIS_CM = 10.0
+# Ultrasonic Thresholds (Tuned for precise presence detection; idle stays at solid Red)
+DISTANCE_TRIGGER_CM = float(os.getenv("DISTANCE_TRIGGER_CM", 45.0))
+DISTANCE_HYSTERESIS_CM = 5.0
 ULTRASONIC_HOLD_TIME_SEC = 0.8
 ULTRASONIC_TIMEOUT_SEC = 0.04
 
@@ -48,8 +48,8 @@ CAMERA_FRAME_HEIGHT = 480
 # AI Vision Models (OpenCV Model Zoo 2026 Standards)
 YUNET_MODEL_FILE = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 SFACE_MODEL_FILE = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
-FACE_DETECTION_CONFIDENCE = 0.80
-FACE_RECOGNITION_THRESHOLD = 0.85  # Cosine similarity for family matching
+FACE_DETECTION_CONFIDENCE = 0.75
+FACE_RECOGNITION_THRESHOLD = 0.70  # Cosine similarity for family matching (0.70 standard)
 
 # Audio & Thai TTS (Elderly-Friendly Tuning)
 VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Voice (Premwadee)

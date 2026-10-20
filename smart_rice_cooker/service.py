@@ -160,9 +160,15 @@ class CompanionService:
             self.fsm.transition_to(SystemState.STANDBY)
 
     def _handle_recognized_member(self, member_id: str):
+        # Match case-insensitively with config member keys (e.g. 'Nine' -> 'nine')
+        for k in self.repo.get_all_members().keys():
+            if k.lower() == str(member_id).lower():
+                member_id = k
+                break
+
         member_info = self.repo.get_member(member_id)
         display_name = member_info.get("display_name", member_id)
-        greeting = member_info.get("voice_greeting", f"สวัสดีครับ {display_name}")
+        greeting = member_info.get("voice_greeting", f"สวัสดีค่ะ{display_name}")
 
         slot_key, slot_data = self.scheduler.get_current_slot_for_member(member_id)
 
