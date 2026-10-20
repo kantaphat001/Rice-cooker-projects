@@ -3,6 +3,7 @@ Face dataset and AI recognition service for Smart Rice Cooker.
 Manages local face photos, gallery listing, upload, deletion, and AI model rebuild on Raspberry Pi.
 """
 import time
+import base64
 import threading
 from pathlib import Path
 from datetime import datetime
@@ -155,7 +156,7 @@ def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path) -> None:
 
 
 def capture_face_from_pi(member_id: str) -> Optional[str]:
-    """Trigger Raspberry Pi camera to capture a photo, then download to local dataset."""
+    """Trigger Raspberry Pi camera to capture a photo with auto-probing, then download to local dataset."""
     if not PARAMIKO_AVAILABLE:
         return None
     pi_ip = get_pi_ip()
@@ -163,26 +164,49 @@ def capture_face_from_pi(member_id: str) -> Optional[str]:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
+        
+        # Stop background service to free camera hardware
         ssh.exec_command("sudo systemctl stop smart-cooker.service")
-        time.sleep(0.5)
+        time.sleep(1.0)
 
-        remote_code = f"""
-python3 -c "
-import cv2, time
+        py_script = f"""
+import cv2
+import time
 from pathlib import Path
+
 p = Path('/home/pi/dataset/{member_id}')
 p.mkdir(parents=True, exist_ok=True)
-cap = cv2.VideoCapture(0)
-if cap.isOpened():
+
+cap = None
+for idx in (1, 0, 2):
+    try:
+        c = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+        if not c.isOpened():
+            c = cv2.VideoCapture(idx)
+        if c.isOpened():
+            for _ in range(4):
+                ret, frame = c.read()
+            if ret and frame is not None and frame.size > 0:
+                cap = c
+                break
+            c.release()
+    except Exception:
+        pass
+
+if cap and cap.isOpened():
     ret, frame = cap.read()
     if ret and frame is not None:
         filename = f'face_{{int(time.time()*1000)}}.jpg'
         cv2.imwrite(str(p / filename), frame)
         print('CAPTURED_OK:' + filename)
     cap.release()
-"
+else:
+    print('CAPTURE_FAILED')
 """
-        stdin, stdout, stderr = ssh.exec_command(remote_code)
+        b64 = base64.b64encode(py_script.encode('utf-8')).decode('ascii')
+        remote_cmd = f"python3 -c \"import base64; exec(base64.b64decode('{b64}').decode('utf-8'))\""
+
+        stdin, stdout, stderr = ssh.exec_command(remote_cmd)
         out = stdout.read().decode('utf-8', errors='replace')
 
         if 'CAPTURED_OK:' in out:
@@ -196,7 +220,9 @@ if cap.isOpened():
             sftp.close()
 
             # Rebuild AI model
-            ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
+            _, rb_out, _ = ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
+            rb_out.channel.recv_exit_status()
+
             ssh.exec_command("sudo systemctl start smart-cooker.service")
             ssh.close()
             return captured_name
