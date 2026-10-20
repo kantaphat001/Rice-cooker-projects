@@ -46,7 +46,8 @@ def sync_code(ssh):
         try:
             sftp.stat(remote_dir)
         except IOError:
-            ssh.exec_command(f"mkdir -p {remote_dir}")
+            _, sout, _ = ssh.exec_command(f"mkdir -p '{remote_dir}'")
+            sout.channel.recv_exit_status()
             
         for file in files:
             if file.endswith((".py", ".json", ".txt")) and not file.endswith(".pyc"):
@@ -58,6 +59,21 @@ def sync_code(ssh):
     cfg = os.path.join(local_root, "med_config.json")
     if os.path.exists(cfg):
         sftp.put(cfg, f"/home/{PI_USER}/med_config.json")
+
+    # Sync audio cache
+    audio_dir = os.path.join(local_root, "audio_cache")
+    if os.path.isdir(audio_dir):
+        try:
+            sftp.stat(f"/home/{PI_USER}/audio_cache")
+        except IOError:
+            _, sout, _ = ssh.exec_command(f"mkdir -p '/home/{PI_USER}/audio_cache'")
+            sout.channel.recv_exit_status()
+        for f in os.listdir(audio_dir):
+            if f.endswith(".mp3"):
+                try:
+                    sftp.put(os.path.join(audio_dir, f), f"/home/{PI_USER}/audio_cache/{f}")
+                except Exception:
+                    pass
         
     sftp.close()
     print("[+] ซิงค์ไฟล์ล่าสุดสำเร็จเรียบร้อยแล้ว!")
