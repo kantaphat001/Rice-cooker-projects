@@ -143,11 +143,25 @@ class CompanionService:
 
     def _run_recognition_pipeline(self):
         try:
-            # Grab latest warm-up frame
-            frame = self.camera.get_latest_frame()
+            # Multi-frame retry: scan up to 5 frames (1.0s - 1.2s) as person steps in front of camera
+            member_id = None
+            confidence = 0.0
 
-            # Identify face via YuNet + SFace
-            member_id, confidence, _ = self.face_db.identify(frame)
+            for attempt in range(6):
+                frame = self.camera.get_latest_frame()
+                if frame is not None and frame.size > 0:
+                    mid, conf, _ = self.face_db.identify(frame)
+                    if mid and mid != "unknown":
+                        member_id = mid
+                        confidence = conf
+                        break
+                    elif mid == "unknown":
+                        if conf > confidence:
+                            confidence = conf
+                        if member_id is None:
+                            member_id = "unknown"
+                time.sleep(0.18)
+
             logger.info(f"[Service] Recognition result: {member_id} ({confidence:.2f})")
 
             if member_id and member_id != "unknown":
@@ -185,6 +199,13 @@ class CompanionService:
         all_meds = before_meds + after_meds
 
         self._active_member_slot = (member_id, slot_key)
+
+        if not all_meds:
+            # Slot exists but no medications prescribed for this meal
+            msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
+            self._speak_and_finish(msg, has_meds=False)
+            return
 
         # Check adherence state
         if self.tracker.is_acknowledged(member_id, slot_key):

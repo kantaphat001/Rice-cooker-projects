@@ -42,7 +42,7 @@ class CameraManager:
         self._max_consecutive_failures = 5
 
     def _open_camera(self) -> bool:
-        """Attempts to open V4L2 device with optimized hardware parameters."""
+        """Attempts to open V4L2 device with auto-probing across candidate indices."""
         if self._cap is not None:
             try:
                 self._cap.release()
@@ -50,18 +50,35 @@ class CameraManager:
                 pass
             self._cap = None
 
+        candidate_indices = [self.camera_index]
+        for alt in (0, 1, 2, 4):
+            if alt not in candidate_indices:
+                candidate_indices.append(alt)
+
+        for idx in candidate_indices:
+            try:
+                cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+                if not cap or not cap.isOpened():
+                    cap = cv2.VideoCapture(idx)
+
+                if cap and cap.isOpened():
+                    # Validate real capture with a test frame
+                    ret, test_frame = cap.read()
+                    if ret and test_frame is not None and test_frame.size > 0:
+                        self._cap = cap
+                        self.camera_index = idx
+                        break
+                    else:
+                        cap.release()
+            except Exception:
+                pass
+
+        if not self._cap or not self._cap.isOpened():
+            logger.warning(f"[Camera] Cannot open any camera from {candidate_indices}. Fallback to mock.")
+            self._is_mock = True
+            return False
+
         try:
-            # Explicitly select V4L2 backend
-            self._cap = cv2.VideoCapture(self.camera_index, cv2.CAP_V4L2)
-            if not self._cap or not self._cap.isOpened():
-                # Fallback to default backend if V4L2 enum fails
-                self._cap = cv2.VideoCapture(self.camera_index)
-
-            if not self._cap or not self._cap.isOpened():
-                logger.warning(f"[Camera] Cannot open /dev/video{self.camera_index}. Fallback to mock.")
-                self._is_mock = True
-                return False
-
             # 1. Hardware MJPEG compression (lowest memory & bus load)
             self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             # 2. Optimized 640x480 resolution (native camera mode)
