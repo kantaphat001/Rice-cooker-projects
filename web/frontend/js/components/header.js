@@ -22,7 +22,7 @@ export function renderHeader() {
           </div>
           <div class="min-w-0">
             <h1 class="text-base sm:text-lg font-bold text-slate-800 leading-tight truncate">
-              เครื่องเตือนทานยาอัจฉริยะ
+              เครื่องเตือนทานยา
             </h1>
             <p class="text-xs text-slate-500 truncate hidden sm:block">
               ระบบดูแลและเตือนการรับประทานยาประจำบ้าน

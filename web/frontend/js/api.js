@@ -55,7 +55,8 @@ export async function addMember(id, displayName, voiceGreeting) {
     if (data.success) {
       store.setState({
         configData: { members: data.members },
-        currentMemberId: id
+        currentMemberId: id,
+        faceSummary: data.face_summary || store.getState().faceSummary
       });
       showToast(`เพิ่มสมาชิก "${displayName}" เรียบร้อยแล้ว`, 'success');
       return true;
@@ -79,7 +80,8 @@ export async function deleteMember(memberId) {
       const remainingIds = Object.keys(data.members || {});
       store.setState({
         configData: { members: data.members },
-        currentMemberId: remainingIds[0] || ''
+        currentMemberId: remainingIds[0] || '',
+        faceSummary: data.face_summary || {}
       });
       showToast('ลบสมาชิกเรียบร้อยแล้ว', 'info');
       return true;

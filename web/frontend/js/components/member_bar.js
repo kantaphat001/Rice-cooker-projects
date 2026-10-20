@@ -4,7 +4,7 @@
  */
 
 import { store } from '../state.js';
-import { deleteMember } from '../api.js';
+import { openDeleteMemberModal } from './shortcut_modal.js';
 
 export function renderMemberBar() {
   const container = document.getElementById('member-bar-container');
@@ -78,10 +78,19 @@ export function renderMemberBar() {
             <span>เพิ่มรูป</span>
           </button>
 
-          <button id="btn-delete-member" class="apple-button px-3 py-2 bg-rose-50 hover:bg-rose-100/70 text-rose-600 text-xs sm:text-sm flex items-center justify-center" title="ลบสมาชิกนี้">
+          <button id="btn-delete-member" class="apple-button flex-1 sm:flex-none px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition" title="ลบสมาชิกนี้ออกจากระบบ">
             <span>🗑️</span>
+            <span>ลบสมาชิก</span>
           </button>
         </div>
+      </div>
+    `;
+  } else {
+    profileCardHtml = `
+      <div class="glass-card rounded-2xl p-8 text-center text-slate-500 mt-3">
+        <p class="text-3xl mb-2">👋</p>
+        <p class="text-base font-semibold text-slate-700">ยังไม่มีสมาชิกในระบบ</p>
+        <p class="text-xs text-slate-400 mt-1">กดปุ่ม "+ เพิ่มสมาชิกใหม่" ด้านบนเพื่อเริ่มลงทะเบียนคนในบ้าน</p>
       </div>
     `;
   }
@@ -119,10 +128,8 @@ export function renderMemberBar() {
 
   const deleteBtn = document.getElementById('btn-delete-member');
   if (deleteBtn && currentMemberId && currentMember) {
-    deleteBtn.addEventListener('click', async () => {
-      if (confirm(`คุณต้องการลบข้อมูลของ "${currentMember.display_name}" ใช่หรือไม่?`)) {
-        await deleteMember(currentMemberId);
-      }
+    deleteBtn.addEventListener('click', () => {
+      openDeleteMemberModal(currentMemberId);
     });
   }
 }

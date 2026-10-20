@@ -18,6 +18,7 @@ from web.backend.face_service import (
     get_member_faces,
     get_face_summary,
     delete_member_face,
+    delete_member_dataset,
     save_uploaded_face,
     capture_face_from_pi,
     DATASET_DIR
@@ -294,7 +295,7 @@ class MedPortalHandler(BaseHTTPRequestHandler):
                 }
             }
             save_config(cfg)
-            self._send_json({"success": True, "members": cfg["members"]})
+            self._send_json({"success": True, "members": cfg["members"], "face_summary": get_face_summary()})
             return
 
         if path == '/api/members/delete':
@@ -303,7 +304,8 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             if member_id in cfg.get("members", {}):
                 del cfg["members"][member_id]
                 save_config(cfg)
-                self._send_json({"success": True, "members": cfg["members"]})
+                delete_member_dataset(member_id)
+                self._send_json({"success": True, "members": cfg["members"], "face_summary": get_face_summary()})
             else:
                 self._send_json({"success": False, "error": "ไม่พบสมาชิกที่ต้องการลบ"}, code=404)
             return

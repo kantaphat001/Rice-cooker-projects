@@ -4,8 +4,10 @@
  */
 
 import { store } from '../state.js';
-import { addMember } from '../api.js';
+import { addMember, deleteMember } from '../api.js';
 import { showToast } from './toast.js';
+
+let pendingDeleteMemberId = null;
 
 export function setupAuxiliaryModals() {
   const container = document.getElementById('modal-aux-container');
@@ -138,6 +140,58 @@ export function setupAuxiliaryModals() {
         </form>
       </div>
     </div>
+
+    <!-- 4. Delete Member Confirmation Modal -->
+    <div id="modal-delete-member" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+      <div id="modal-delete-member-backdrop" class="modal-backdrop fixed inset-0"></div>
+      <div class="glass-sheet w-full max-w-sm rounded-3xl p-6 relative z-10 space-y-4 animate-in fade-in zoom-in-95 duration-200 shadow-xl border border-rose-100/50">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-sm">🗑️</span>
+            <div>
+              <h3 class="font-bold text-slate-800 text-base">ลบสมาชิกออกจากระบบ</h3>
+              <p class="text-[11px] text-slate-500">ยืนยันการนำสมาชิกออกจากเครื่องเตือนยา</p>
+            </div>
+          </div>
+          <button id="btn-close-delete-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">✕</button>
+        </div>
+
+        <!-- Target Member Info Card -->
+        <div class="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-center gap-3">
+          <div id="delete-modal-avatar" class="w-12 h-12 rounded-xl bg-slate-200 flex items-center justify-center font-bold text-lg text-slate-700 overflow-hidden shrink-0">
+            👤
+          </div>
+          <div class="min-w-0">
+            <h4 id="delete-modal-name" class="font-bold text-slate-800 text-sm truncate">ชื่อสมาชิก</h4>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="delete-modal-id" class="text-[11px] px-1.5 py-0.2 rounded-md bg-slate-200 text-slate-600 font-mono">id</span>
+              <span id="delete-modal-faces" class="text-[11px] text-slate-500">0 รูปใบหน้า</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Warning Callout -->
+        <div class="p-3 rounded-2xl bg-rose-50/80 border border-rose-100 text-xs text-rose-800 space-y-1.5">
+          <p class="font-semibold flex items-center gap-1">
+            <span>⚠️</span> ข้อมูลที่จะถูกลบถาวร:
+          </p>
+          <ul class="list-disc list-inside text-[11px] space-y-0.5 text-rose-700/90 pl-1">
+            <li>ตารางเวลาแจ้งเตือนยาทั้ง 4 มื้อ</li>
+            <li>ไฟล์รูปถ่ายใบหน้า AI และการจดจำบนเครื่องเตือนยา</li>
+          </ul>
+        </div>
+
+        <div class="pt-2 flex items-center gap-2">
+          <button type="button" id="btn-cancel-delete-member" class="apple-button flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">
+            ยกเลิก
+          </button>
+          <button type="button" id="btn-confirm-delete-member" class="apple-button flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-xs flex items-center justify-center gap-1.5">
+            <span id="delete-spinner" class="hidden animate-spin">⏳</span>
+            <span id="delete-btn-text">ยืนยันการลบ</span>
+          </button>
+        </div>
+      </div>
+    </div>
   `;
 
   // Bind QR Modal
@@ -221,6 +275,80 @@ export function setupAuxiliaryModals() {
       closeMemberModal();
     }
   });
+
+  // Bind Delete Member Modal
+  const modalDelete = document.getElementById('modal-delete-member');
+  const backdropDelete = document.getElementById('modal-delete-member-backdrop');
+  const closeDelete = document.getElementById('btn-close-delete-modal');
+  const cancelDelete = document.getElementById('btn-cancel-delete-member');
+  const confirmDelete = document.getElementById('btn-confirm-delete-member');
+  const deleteSpinner = document.getElementById('delete-spinner');
+  const deleteBtnText = document.getElementById('delete-btn-text');
+
+  function closeDeleteModal() {
+    if (modalDelete) modalDelete.classList.add('hidden');
+    pendingDeleteMemberId = null;
+  }
+
+  if (backdropDelete) backdropDelete.onclick = closeDeleteModal;
+  if (closeDelete) closeDelete.onclick = closeDeleteModal;
+  if (cancelDelete) cancelDelete.onclick = closeDeleteModal;
+
+  if (confirmDelete) {
+    confirmDelete.onclick = async () => {
+      if (!pendingDeleteMemberId) return;
+      confirmDelete.disabled = true;
+      if (deleteSpinner) deleteSpinner.classList.remove('hidden');
+      if (deleteBtnText) deleteBtnText.textContent = 'กำลังลบ...';
+
+      const ok = await deleteMember(pendingDeleteMemberId);
+      if (ok) {
+        closeDeleteModal();
+      } else {
+        confirmDelete.disabled = false;
+        if (deleteSpinner) deleteSpinner.classList.add('hidden');
+        if (deleteBtnText) deleteBtnText.textContent = 'ยืนยันการลบ';
+      }
+    };
+  }
+}
+
+export function openDeleteMemberModal(memberId) {
+  const modal = document.getElementById('modal-delete-member');
+  if (!modal) return;
+
+  const state = store.getState();
+  const members = state.configData.members || {};
+  const mem = members[memberId];
+  if (!mem) return;
+
+  pendingDeleteMemberId = memberId;
+  const faceInfo = state.faceSummary?.[memberId] || { count: 0, latest_url: null };
+
+  const nameEl = document.getElementById('delete-modal-name');
+  const idEl = document.getElementById('delete-modal-id');
+  const facesEl = document.getElementById('delete-modal-faces');
+  const avatarEl = document.getElementById('delete-modal-avatar');
+
+  if (nameEl) nameEl.textContent = mem.display_name || memberId;
+  if (idEl) idEl.textContent = memberId;
+  if (facesEl) facesEl.textContent = `${faceInfo.count || 0} รูปใบหน้า`;
+  if (avatarEl) {
+    if (faceInfo.latest_url) {
+      avatarEl.innerHTML = `<img src="${faceInfo.latest_url}" class="w-full h-full object-cover">`;
+    } else {
+      avatarEl.textContent = (mem.display_name ? mem.display_name[0] : '👤');
+    }
+  }
+
+  const confirmDelete = document.getElementById('btn-confirm-delete-member');
+  const deleteSpinner = document.getElementById('delete-spinner');
+  const deleteBtnText = document.getElementById('delete-btn-text');
+  if (confirmDelete) confirmDelete.disabled = false;
+  if (deleteSpinner) deleteSpinner.classList.add('hidden');
+  if (deleteBtnText) deleteBtnText.textContent = 'ยืนยันการลบ';
+
+  modal.classList.remove('hidden');
 }
 
 export function openQrModal() {

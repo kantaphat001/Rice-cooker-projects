@@ -105,6 +105,54 @@ def delete_member_face(member_id: str, filename: str) -> bool:
     return True
 
 
+def delete_member_dataset(member_id: str) -> bool:
+    """Delete all local face photos for member, delete remotely on Pi, and rebuild AI model."""
+    import shutil
+    # 1. Local deletion
+    matched_dir = _find_member_dir(member_id)
+    if matched_dir and matched_dir.exists():
+        try:
+            shutil.rmtree(matched_dir)
+            print(f"[+] Deleted local dataset directory: {matched_dir}")
+        except Exception as e:
+            print(f"[!] Error deleting local dataset directory: {e}")
+
+    exact_dir = DATASET_DIR / member_id
+    if exact_dir.exists():
+        try:
+            shutil.rmtree(exact_dir)
+        except Exception:
+            pass
+
+    # 2. Remote deletion and AI rebuild on Raspberry Pi
+    def _remote_purge_and_rebuild():
+        if not PARAMIKO_AVAILABLE:
+            return
+        pi_ip = get_pi_ip()
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
+
+            cmd_rm = f"rm -rf /home/{PI_USER}/dataset/{member_id} /home/{PI_USER}/dataset/{member_id.lower()} /home/{PI_USER}/dataset/{member_id.capitalize()}"
+            ssh.exec_command(cmd_rm)
+
+            ssh.exec_command("sudo systemctl stop smart-cooker.service")
+            time.sleep(0.5)
+            stdin, stdout, stderr = ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
+            exit_status = stdout.channel.recv_exit_status()
+            out = stdout.read().decode('utf-8', errors='replace')
+            print(f"[+] Purged member '{member_id}' dataset on Pi and rebuilt AI faces (exit={exit_status}):\n{out}")
+
+            ssh.exec_command("sudo systemctl start smart-cooker.service")
+            ssh.close()
+        except Exception as e:
+            print(f"[!] Error purging remote member dataset on Pi: {e}")
+
+    threading.Thread(target=_remote_purge_and_rebuild, daemon=True).start()
+    return True
+
+
 def save_uploaded_face(member_id: str, img_bytes: bytes) -> Optional[Path]:
     """Save uploaded face photo locally and trigger sync to Raspberry Pi."""
     mem_dir = DATASET_DIR / member_id
