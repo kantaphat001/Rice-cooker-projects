@@ -27,7 +27,7 @@ class TTSPrecompiler:
         def _safe_synth(text: str):
             try:
                 self.tts.synthesize(text)
-                time.sleep(0.2)
+                time.sleep(0.4)
             except Exception as e:
                 logger.warning(f"[TTS Precompiler] Skip error: {e}")
 

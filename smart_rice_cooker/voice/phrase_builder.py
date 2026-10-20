@@ -54,7 +54,7 @@ class ThaiPhraseBuilder:
     def build_full_meal_announcement(greeting: str, slot_label: str, before_meds: List[Dict], after_meds: List[Dict]) -> str:
         """Constructs a warm, polite, and elegant meal announcement."""
         g = ThaiPhraseBuilder._clean_greeting(greeting)
-        parts = [f"{g} ตอนนี้ได้เวลาสำหรับ{slot_label}แล้วนะคะ เครื่องเตือนทานยาขออนุญาตแจ้งรายการยานะคะ"]
+        parts = [f"{g} ตอนนี้ได้เวลาสำหรับ{slot_label}แล้วนะคะ เครื่องเตือนยาขออนุญาตแจ้งรายการยานะคะ"]
 
         if before_meds:
             med_descriptions = [ThaiPhraseBuilder._format_med_item(m) for m in before_meds]
@@ -70,7 +70,7 @@ class ThaiPhraseBuilder:
     @staticmethod
     def build_unacknowledged_followup(display_name: str) -> str:
         """Polite follow-up reminder if user enters proximity during cooldown."""
-        return f"{display_name}คะ เครื่องเตือนทานยาขออนุญาตเตือนนะคะ อย่าลืมรับประทานยาตามเวลา เพื่อสุขภาพร่างกายที่แข็งแรงสมบูรณ์นะคะ"
+        return f"{display_name}คะ เครื่องเตือนยาขออนุญาตเตือนนะคะ อย่าลืมรับประทานยาตามเวลา เพื่อสุขภาพร่างกายที่แข็งแรงสมบูรณ์นะคะ"
 
     @staticmethod
     def build_already_taken_message(display_name: str) -> str:
@@ -86,9 +86,9 @@ class ThaiPhraseBuilder:
     @staticmethod
     def build_unknown_visitor_message() -> str:
         """Warm, welcoming greeting to family visitors."""
-        return "สวัสดีค่ะ เครื่องเตือนทานยาอัจฉริยะยินดีต้อนรับค่ะ ขอให้มีความสุข สดชื่นแจ่มใส และมีสุขภาพร่างกายที่แข็งแรงในทุกๆ วันนะคะ"
+        return "สวัสดีค่ะ เครื่องเตือนยายินดีต้อนรับค่ะ ขอให้มีความสุข สดชื่นแจ่มใส และมีสุขภาพร่างกายที่แข็งแรงในทุกๆ วันนะคะ"
 
     @staticmethod
     def build_acknowledge_confirmation_message() -> str:
         """Polite confirmation when medication acknowledgement is recorded."""
-        return "เครื่องเตือนทานยาบันทึกข้อมูลเรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"
+        return "เครื่องเตือนยาบันทึกข้อมูลเรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"
