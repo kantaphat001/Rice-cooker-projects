@@ -4,6 +4,7 @@ Tailored specifically for the elderly (Elderly-Friendly 2026 Edition):
 - Speaks with warmth and respect, resembling an affectionate, caring grandchild
 - Supports color tags and location cues (e.g. "ซองสีเขียว", "ช่องที่ 1") so elderly easily identify pills
 - Provides encouraging reassurance to prevent dangerous medication overdoses (double-dosing)
+- Includes Overdose Cutoff Window alerts and Next Meal Status notifications
 - Matches the natural cadence of th-TH-PremwadeeNeural (polite female grandchild voice)
 """
 
@@ -66,6 +67,38 @@ class ThaiPhraseBuilder:
 
         parts.append("ขอให้รับประทานอาหารให้อร่อย สุขภาพแข็งแรง และอย่าลืมดื่มน้ำตามให้เพียงพอนะคะ")
         return " ".join(parts)
+
+    @staticmethod
+    def build_catchup_reminder(greeting: str, prev_slot_label: str, before_meds: List[Dict], after_meds: List[Dict]) -> str:
+        """Polite reminder for missed medications outside normal slot, within safe window."""
+        g = ThaiPhraseBuilder._clean_greeting(greeting)
+        parts = [f"{g} เลยเวลาสำหรับ{prev_slot_label}มาแล้วนะคะ แต่ยังไม่ได้รับประทานยา ขออนุญาตเตือนรายการยานะคะ"]
+
+        if before_meds:
+            med_descriptions = [ThaiPhraseBuilder._format_med_item(m) for m in before_meds]
+            parts.append(f"มียาก่อนอาหาร คือ {' และ '.join(med_descriptions)} ค่ะ")
+
+        if after_meds:
+            med_descriptions = [ThaiPhraseBuilder._format_med_item(m) for m in after_meds]
+            parts.append(f"และยาหลังอาหาร คือ {' และ '.join(med_descriptions)} ค่ะ")
+
+        parts.append("อย่าลืมรับประทานยาให้ครบถ้วนเพื่อสุขภาพที่แข็งแรงนะคะ")
+        return " ".join(parts)
+
+    @staticmethod
+    def build_overdose_hazard_warning(display_name: str, prev_slot_label: str, next_slot_label: str, minutes_to_next: int) -> str:
+        """
+        Crucial Medical Safety Guard:
+        Warns user not to take earlier missed medication when too close (<60m) to next meal.
+        """
+        return (f"{display_name}คะ เลยเวลาทานยามื้อ{prev_slot_label}มามากแล้ว และอีกไม่ถึงหนึ่งชั่วโมงจะถึงเวลาสำหรับมื้อ{next_slot_label}แล้วนะคะ "
+                f"เพื่อความปลอดภัยและป้องกันการรับยาซ้ำซ้อน ขอแนะนำให้เว้นยามื้อที่ผ่านมา และเตรียมรับประทานตามเวลามื้อ{next_slot_label}ตามปกตินะคะ")
+
+    @staticmethod
+    def build_next_meal_friendly_status(greeting: str, next_label: str, next_time: str) -> str:
+        """Friendly non-intrusive status when earlier meds are taken and system is in between meals."""
+        g = ThaiPhraseBuilder._clean_greeting(greeting)
+        return f"{g} มื้อที่ผ่านมารับประทานยาเรียบร้อยแล้วนะคะ สำหรับมื้อถัดไปคือ{next_label} จะเริ่มเวลา {next_time} น. ค่ะ ขอให้มีความสุขในวันนี้นะคะ"
 
     @staticmethod
     def build_unacknowledged_followup(display_name: str) -> str:

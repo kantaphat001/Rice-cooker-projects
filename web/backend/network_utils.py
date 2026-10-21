@@ -4,6 +4,7 @@ Provides LAN IP auto-detection and cached Raspberry Pi discovery.
 """
 import socket
 import time
+from pathlib import Path
 from typing import Optional
 
 _CACHED_PI_IP: Optional[str] = None
@@ -26,9 +27,19 @@ def get_local_ip() -> str:
 def get_pi_ip(timeout: float = 2.0) -> str:
     """
     Discover Raspberry Pi IP on the local network.
-    Checks memory cache first, then attempts mDNS (raspberrypi.local).
+    Checks config_ip.txt first, then memory cache, then attempts mDNS (raspberrypi.local).
     """
     global _CACHED_PI_IP, _CACHED_PI_TIME
+
+    # Check config_ip.txt
+    cfg_file = Path(__file__).resolve().parent.parent.parent / "config_ip.txt"
+    if cfg_file.exists():
+        try:
+            saved_ip = cfg_file.read_text(encoding="utf-8").strip()
+            if saved_ip:
+                return saved_ip
+        except Exception:
+            pass
 
     now = time.time()
     if _CACHED_PI_IP and (now - _CACHED_PI_TIME < _CACHE_TTL):
@@ -58,4 +69,4 @@ def get_pi_ip(timeout: float = 2.0) -> str:
     except Exception:
         pass
 
-    return _CACHED_PI_IP or fallback_ip
+    return fallback_ip

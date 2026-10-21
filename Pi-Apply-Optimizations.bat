@@ -3,12 +3,17 @@ chcp 65001 >nul
 title System Optimization Suite - Raspberry Pi 4 Suite
 color 0B
 
+set "TARGET_IP=172.20.1.21"
+if exist "%~dp0config_ip.txt" (
+    set /p TARGET_IP=<"%~dp0config_ip.txt"
+)
+
 echo ================================================================================
 echo    RASPBERRY PI 4 - SYSTEM OPTIMIZATION (ZRAM, CPU, KERNEL)
 echo ================================================================================
 echo  เลือกเครื่องที่ต้องการสั่งปรับจูนประสิทธิภาพ:
 echo.
-echo   [1] เครื่องหลัก (IP: 192.168.88.74) [กด Enter ได้ทันที]
+echo   [1] เครื่องหลัก (IP: %TARGET_IP%) [กด Enter ได้ทันที]
 echo   [2] ระบุหมายเลข IP อื่นด้วยตนเอง
 echo.
 set TARGET_CHOICE=1
@@ -16,8 +21,6 @@ set /p TARGET_CHOICE="เลือกหมายเลข (1, 2, เริ่�
 
 if "%TARGET_CHOICE%"=="2" (
     set /p TARGET_IP="ระบุหมายเลข IP ของ Raspberry Pi: "
-) else (
-    set "TARGET_IP=192.168.88.74"
 )
 
 echo.
@@ -28,7 +31,7 @@ echo.
 echo ================================================================================
 echo  [+] ปรับจูนระบบบน %TARGET_IP% สำเร็จแล้ว!
 echo  - ปิด Swap บน MicroSD Card ถาวร (ถนอมการ์ด)
-echo  - เปิด ZRAM 100% ด้วยอัลกอริทึม LZ4 ความเร็วสูง
-echo  - ตั้งค่า vm.swappiness=100 และ vm.page-cluster=0 ถูกต้องตามมาตรฐาน In-Memory
+echo  - เปิดใช้ ZRAM 100%% บีบอัดหน่วยความจำ LZ4 ความเร็วสูง
+echo  - เคอร์เนล vm.swappiness=100 และ page-cluster=0
 echo ================================================================================
 pause

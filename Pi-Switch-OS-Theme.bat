@@ -5,12 +5,17 @@ color 0D
 
 :SELECT_IP
 cls
+set "TARGET_IP=172.20.1.21"
+if exist "%~dp0config_ip.txt" (
+    set /p TARGET_IP=<"%~dp0config_ip.txt"
+)
+
 echo ================================================================================
 echo    RASPBERRY PI 4 - DESKTOP OS AND THEME SWITCHER
 echo ================================================================================
 echo  เลือกเครื่องที่ต้องการสลับหน้าจอ:
 echo.
-echo   [1] เครื่องหลัก (IP: 192.168.88.74) [กด Enter ได้ทันที]
+echo   [1] เครื่องหลัก (IP: %TARGET_IP%) [กด Enter ได้ทันที]
 echo   [2] ระบุหมายเลข IP อื่นด้วยตนเอง
 echo.
 set TARGET_CHOICE=1
@@ -18,8 +23,6 @@ set /p TARGET_CHOICE="เลือกหมายเลข (1, 2, เริ่�
 
 if "%TARGET_CHOICE%"=="2" (
     set /p TARGET_IP="ระบุหมายเลข IP ของ Raspberry Pi: "
-) else (
-    set "TARGET_IP=192.168.88.74"
 )
 
 :SELECT_THEME

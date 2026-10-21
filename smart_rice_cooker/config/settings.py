@@ -1,6 +1,7 @@
 """
 settings.py - Centralized Configuration for Smart Rice Cooker Companion Box
 Clean separation of hardware pinouts, model paths, timeouts, and thresholds.
+Includes 2026 Production Hardening: Eco-Sleep, Anti-Spam, SD Card RAM disk, and Medical Overdose Safeguards.
 """
 
 import os
@@ -14,6 +15,13 @@ AUDIO_CACHE_DIR = BASE_DIR / "audio_cache"
 DATASET_DIR = BASE_DIR / "dataset"
 IMAGES_DIR = BASE_DIR / "images"
 
+# RAM Disk for SD Card Flash Protection (writes temporary TTS and state to RAM)
+AUDIO_TEMP_DIR = Path("/dev/shm/smart_cooker_audio") if Path("/dev/shm").exists() else Path("/tmp/smart_cooker_audio")
+try:
+    AUDIO_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
 # Ensure runtime directories exist
 AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATASET_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,26 +34,31 @@ PIN_LED_GREEN = int(os.getenv("PIN_LED_GREEN", 22))   # Pin 15 - Announcing / Co
 _pin_btn = os.getenv("PIN_BUTTON_ACK", "")
 PIN_BUTTON_ACK = int(_pin_btn) if _pin_btn.isdigit() else None # None = Hands-Free / Zero-Touch mode (No Button)
 AUTO_ACKNOWLEDGE_ON_REMIND = True
+
 # Ultrasonic Configuration (HC-SR04 / US-016)
 ULTRASONIC_MODEL = os.getenv("ULTRASONIC_MODEL", "HC-SR04") # "HC-SR04" or "US-016"
 PIN_ULTRASONIC_TRIG = int(os.getenv("PIN_ULTRASONIC_TRIG", 23)) # Pin 16 - HC-SR04 Trigger
 PIN_ULTRASONIC_ECHO = int(os.getenv("PIN_ULTRASONIC_ECHO", 24)) # Pin 18 - HC-SR04 Echo
 PIN_ULTRASONIC_OUT = int(os.getenv("PIN_ULTRASONIC_OUT", 24))   # Pin 18 - US-016 OUT (if used)
 
-# Ultrasonic Thresholds (Tuned for precise presence detection; idle stays at solid Red)
+# Ultrasonic Thresholds & Anti-False-Trigger Hardening
 DISTANCE_TRIGGER_CM = float(os.getenv("DISTANCE_TRIGGER_CM", 45.0))
 DISTANCE_HYSTERESIS_CM = 5.0
 ULTRASONIC_HOLD_TIME_SEC = 0.8
 ULTRASONIC_TIMEOUT_SEC = 0.04
+ULTRASONIC_SNIFFER_INTERVAL_SEC = 1.2  # Slow polling in Eco mode (1.2s pulse, 0 heat)
+ULTRASONIC_BURST_SAMPLES = 3           # 2-stage verification: 3 rapid pings to reject steam/ghosts
 
-# Thermal & Camera Management
+# Thermal, Camera Management & Cold-Start Warmup
 CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", 0))
-CAMERA_STANDBY_FPS = float(os.getenv("CAMERA_STANDBY_FPS", 1.0))   # Idle cool grab (1 FPS to minimize thermals and RAM)
+CAMERA_STANDBY_FPS = float(os.getenv("CAMERA_STANDBY_FPS", 1.0))   # Idle cool grab (1 FPS)
 CAMERA_ACTIVE_FPS = float(os.getenv("CAMERA_ACTIVE_FPS", 15.0))    # Detecting speed
 CAMERA_FRAME_WIDTH = 640
 CAMERA_FRAME_HEIGHT = 480
+CAMERA_WARMUP_FRAMES = 8               # Discard 8 frames on wake to allow AE/AWB to stabilize
+AUTO_SLEEP_TIMEOUT_SEC = 60.0          # 60s idle before entering Eco-Sleep (prevents driver bounce)
 
-# AI Vision Models (OpenCV Model Zoo 2026 Standards)
+# AI Vision Models (OpenCV Model Zoo 2026 Standards) - Loaded ONCE in RAM
 YUNET_MODEL_FILE = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 SFACE_MODEL_FILE = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
 FACE_DETECTION_CONFIDENCE = 0.75
@@ -58,9 +71,11 @@ CHIME_FILE = AUDIO_CACHE_DIR / "chime.mp3"                     # Soft pre-announ
 PLAY_CHIME_BEFORE_SPEECH = False                               # Disabled chime as requested by user
 AUDIO_PLAYER_CMD = os.getenv("AUDIO_PLAYER_CMD", "mpg123 -q")
 
-# State & Cooldowns
+# State, Cooldowns & Medical Safety Guards
 COOLDOWN_HARDWARE_SEC = 10
 COOLDOWN_PERSON_MINUTES = 20
+FRIENDLY_GREETING_COOLDOWN_SEC = 3600.0  # 60 min anti-spam cooldown for friendly non-med greetings
+NEXT_MEAL_CUTOFF_MINUTES = 60            # Overdose protection: If <60m to next meal, skip catchup
 
 # Medication and State Persistence Files
 CONFIG_FILE = BASE_DIR / "med_config.json"

@@ -4,32 +4,40 @@ Engineered for Raspberry Pi 4 (1GB RAM) with High Availability & Self-Healing:
 - Backend: Native Linux V4L2 (CAP_V4L2) - zero GStreamer/FFMPEG wrapper overhead
 - Zero-Latency Buffer: CAP_PROP_BUFFERSIZE = 1 (Hardware queue depth of 1)
 - Hardware MJPG Decoding: Minimizes USB 2.0 bus load and CPU RAM copies
-- Thread-Limiting: cv2.setNumThreads(2) to cap glibc memory arenas on ARM64
+- Thread-Limiting: cv2.setNumThreads(1) to cap glibc memory arenas on ARM64
 - Watchdog Auto-Recovery: Automatically re-initializes camera if frame drops > 5
-- Dynamic FPS: 2 FPS in Standby (low CPU/thermals), jumps to 15 FPS when person present
-- Single-slot memory management to avoid RAM leaks
+- Dynamic FPS: 1 FPS in Standby, 15 FPS when person present
+- Hardware Eco-Sleep / Suspend: Releases V4L2 device descriptor so CMOS sensor powers down completely
+- Auto-Exposure Warm-Up: Discards 8 frames on cold-start to eliminate black/blown-out frames
 """
 
-import cv2
 import threading
 import time
 import logging
 import gc
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Enforce minimal thread pool for OpenCV on 1GB RAM Pi
 try:
-    cv2.setNumThreads(1)
-except Exception:
-    pass
+    import cv2
+    import numpy as np
+    OPENCV_AVAILABLE = True
+    try:
+        cv2.setNumThreads(1)
+    except Exception:
+        pass
+except ImportError:
+    cv2 = None
+    np = None
+    OPENCV_AVAILABLE = False
+    logger.warning("[Camera] OpenCV/NumPy not available. Running in MOCK mode.")
 
 class CameraManager:
-    def __init__(self, camera_index: int = 0, standby_fps: float = 2.0, active_fps: float = 15.0):
+    def __init__(self, camera_index: int = 0, standby_fps: float = 1.0, active_fps: float = 15.0, warmup_frames: int = 8):
         self.camera_index = camera_index
         self.standby_fps = standby_fps
         self.active_fps = active_fps
+        self.warmup_frames = warmup_frames
 
         self._cap = None
         self._running = False
@@ -37,12 +45,17 @@ class CameraManager:
         self._lock = threading.Lock()
         self._latest_frame = None
         self._is_active_mode = False
+        self._is_suspended = False
         self._is_mock = False
         self._consecutive_failures = 0
         self._max_consecutive_failures = 5
 
     def _open_camera(self) -> bool:
         """Attempts to open V4L2 device with auto-probing across candidate indices."""
+        if not OPENCV_AVAILABLE:
+            self._is_mock = True
+            return False
+
         if self._cap is not None:
             try:
                 self._cap.release()
@@ -102,10 +115,43 @@ class CameraManager:
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True, name="CamCaptureThread")
         self._thread.start()
-        logger.info("[Camera] Continuous zero-lag capture loop started.")
+        logger.info("[Camera] Continuous capture loop started.")
+
+    def suspend(self):
+        """Safely powers down camera hardware during Eco-Sleep (prevents sensor heat)."""
+        if self._is_suspended:
+            return
+        logger.info("[Camera] Suspending camera hardware for Eco-Sleep (releasing V4L2 device)...")
+        with self._lock:
+            self._is_suspended = True
+            if self._cap:
+                try:
+                    self._cap.release()
+                except Exception:
+                    pass
+                self._cap = None
+            self._latest_frame = None
+        gc.collect()
+        logger.info("[Camera] Camera suspended. CMOS sensor powered down.")
+
+    def resume(self):
+        """Wakes up camera hardware and performs Auto-Exposure warm-up frames."""
+        if not self._is_suspended and self._cap and self._cap.isOpened():
+            return
+        logger.info("[Camera] Resuming camera hardware from Eco-Sleep...")
+        with self._lock:
+            self._open_camera()
+            if self._cap and self._cap.isOpened():
+                # Auto-Exposure / AWB Warm-up: discard initial dark/blown-out frames
+                logger.info(f"[Camera] Performing Auto-Exposure warm-up ({self.warmup_frames} frames)...")
+                for _ in range(self.warmup_frames):
+                    self._cap.read()
+                    time.sleep(0.02)
+                logger.info("[Camera] Auto-Exposure stabilized.")
+            self._is_suspended = False
 
     def set_active_mode(self, active: bool):
-        """Switches between 2 FPS (standby) and 15 FPS (active detection)."""
+        """Switches between 1 FPS (standby) and 15 FPS (active detection)."""
         self._is_active_mode = active
         fps = self.active_fps if active else self.standby_fps
         logger.debug(f"[Camera] Mode switched to {'ACTIVE' if active else 'STANDBY'} ({fps} FPS)")
@@ -116,13 +162,21 @@ class CameraManager:
             if self._latest_frame is not None:
                 return self._latest_frame.copy()
 
+        if np is None or cv2 is None:
+            return None
+
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(dummy, "Camera Warming Up...", (150, 240),
+        status = "Camera In Eco-Sleep" if self._is_suspended else "Camera Warming Up..."
+        cv2.putText(dummy, status, (150, 240),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         return dummy
 
     def _capture_loop(self):
         while self._running:
+            if self._is_suspended:
+                time.sleep(0.2)
+                continue
+
             t_start = time.time()
             target_fps = self.active_fps if self._is_active_mode else self.standby_fps
             target_interval = 1.0 / max(1.0, target_fps)
@@ -141,13 +195,14 @@ class CameraManager:
                         time.sleep(1.0)
                         self._open_camera()
             else:
-                # Generate synthetic test frame
-                mock_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                cv2.rectangle(mock_frame, (100, 80), (540, 400), (35, 35, 35), -1)
-                cv2.putText(mock_frame, f"Mock Camera Stream [{time.strftime('%H:%M:%S')}]",
-                            (120, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
-                with self._lock:
-                    self._latest_frame = mock_frame
+                # Generate synthetic test frame if numpy/cv2 available
+                if np is not None and cv2 is not None:
+                    mock_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                    cv2.rectangle(mock_frame, (100, 80), (540, 400), (35, 35, 35), -1)
+                    cv2.putText(mock_frame, f"Mock Camera Stream [{time.strftime('%H:%M:%S')}]",
+                                (120, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
+                    with self._lock:
+                        self._latest_frame = mock_frame
 
                 if self._is_mock and not self._running:
                     break

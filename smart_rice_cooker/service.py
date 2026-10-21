@@ -1,13 +1,20 @@
 """
 service.py - Master Orchestrator for Smart Rice Cooker Companion Box
 Wires together Sensors, Vision AI, Audio, LEDs, State Machine, and GUI.
+Includes 2026 Production Hardening:
+- Event-Driven Eco-Sleep (powers down camera & drops CPU load, wakes in 2-stage burst)
+- AI Models Loaded ONCE in RAM (no ONNX reload latency on wake)
+- Camera Cold-Start Warmup (discards 8 AE/AWB initial frames)
+- Anti-Spam Greeting Cooldown (60 min silent LED acknowledgment)
+- Medical Overdose Cutoff Guard (< 60 min to next meal warning)
+- MicroSD Flash Protection (temp TTS and state routed to /dev/shm)
 """
 
 import time
 import logging
 import threading
 import gc
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 from .config import settings
 from .core.state_machine import CompanionStateMachine, SystemState
@@ -35,11 +42,17 @@ class CompanionService:
         self.gui = gui
         self.camera_only = camera_only
         self.event_bus = EventBus()
+        self._running = False
 
         # 1. Hardware Drivers
         self.leds = LEDController(settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
         self.button = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=self._handle_button_press) if settings.PIN_BUTTON_ACK else None
-        self.camera = CameraManager(settings.CAMERA_INDEX, settings.CAMERA_STANDBY_FPS, settings.CAMERA_ACTIVE_FPS)
+        self.camera = CameraManager(
+            camera_index=settings.CAMERA_INDEX,
+            standby_fps=settings.CAMERA_STANDBY_FPS,
+            active_fps=settings.CAMERA_ACTIVE_FPS,
+            warmup_frames=settings.CAMERA_WARMUP_FRAMES
+        )
         self.ultrasonic = UltrasonicSensor(
             trig_pin=settings.PIN_ULTRASONIC_TRIG,
             echo_pin=settings.PIN_ULTRASONIC_ECHO,
@@ -47,10 +60,13 @@ class CompanionService:
             model=settings.ULTRASONIC_MODEL,
             threshold_cm=settings.DISTANCE_TRIGGER_CM,
             hold_time_sec=settings.ULTRASONIC_HOLD_TIME_SEC,
+            sniffer_interval_sec=settings.ULTRASONIC_SNIFFER_INTERVAL_SEC,
+            burst_samples=settings.ULTRASONIC_BURST_SAMPLES,
             on_person_detected=self._handle_person_detected
         )
 
-        # 2. Vision Models
+        # 2. Vision Models - Loaded ONCE in RAM, never reloaded on wake
+        logger.info("[Service] Loading YuNet detector and SFace recognizer into RAM...")
         self.detector = YuNetDetector(settings.YUNET_MODEL_FILE, conf_threshold=settings.FACE_DETECTION_CONFIDENCE)
         self.recognizer = SFaceRecognizer(settings.SFACE_MODEL_FILE)
         self.face_db = FaceDatabase(settings.DATASET_DIR, self.detector, self.recognizer, settings.FACE_RECOGNITION_THRESHOLD)
@@ -61,24 +77,25 @@ class CompanionService:
         self.tracker = AdherenceTracker(settings.RAM_STATE_FILE, settings.PERSISTENT_STATE_FILE)
 
         # 4. Audio Engine
-        self.tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.VOICE_NAME)
+        self.tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.AUDIO_TEMP_DIR, settings.VOICE_NAME, settings.VOICE_RATE)
         self.player = AudioPlayer(settings.AUDIO_PLAYER_CMD)
         self.precompiler = TTSPrecompiler(self.tts, self.repo)
 
-        # 5. State Machine
+        # 5. State Machine & Event-Driven Timers
         self.fsm = CompanionStateMachine(on_state_change=self._on_state_change)
-
-        # Active Context
+        self._last_activity_time = time.time()
+        self._last_friendly_greeting_time: Dict[str, float] = {}
         self._active_member_slot: Optional[Tuple[str, str]] = None
         self._is_announcing = False
 
     def start(self):
         logger.info("[Service] Starting Smart Rice Cooker Companion Box Service...")
+        self._running = True
 
         # Precompile TTS in background
         threading.Thread(target=self.precompiler.precompile_all, daemon=True).start()
 
-        # Start Camera Warm-up (2 FPS)
+        # Start Camera Warm-up (1 FPS standby)
         self.camera.start()
 
         if self.camera_only:
@@ -88,6 +105,9 @@ class CompanionService:
             # Start Ultrasonic distance loop
             self.ultrasonic.start_monitoring()
 
+        # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
+        threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
+
         # Set Initial State (Red LED ON)
         self.fsm.transition_to(SystemState.STANDBY)
         if self.gui:
@@ -95,11 +115,25 @@ class CompanionService:
 
         logger.info("[Service] ✅ All subsystems operational and listening.")
 
+    def _activity_watchdog_loop(self):
+        """Monitors idle time and manages transitions to Eco-Sleep mode."""
+        while self._running:
+            time.sleep(5.0)
+            if self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
+                idle_time = time.time() - self._last_activity_time
+                if idle_time >= settings.AUTO_SLEEP_TIMEOUT_SEC:
+                    logger.info(f"[Service] Inactivity reached {idle_time:.0f}s >= {settings.AUTO_SLEEP_TIMEOUT_SEC}s. Entering Eco-Sleep.")
+                    self.fsm.transition_to(SystemState.ECO_SLEEP)
+
     def _camera_presence_loop(self):
         """Used when Ultrasonic sensor is not connected; wakes up when face is seen."""
         logger.info("[Service] Camera presence loop active (polling for faces)...")
-        while self.camera._running:
-            if self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
+        while self._running and self.camera._running:
+            if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
+                if self.fsm.current_state == SystemState.ECO_SLEEP:
+                    time.sleep(1.0)
+                    continue
+
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
                     faces = self.detector.detect(frame)
@@ -110,15 +144,28 @@ class CompanionService:
             time.sleep(0.4)
 
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
-        if new_state == SystemState.STANDBY:
+        if new_state == SystemState.ECO_SLEEP:
+            self.leds.turn_off_all()
+            self.camera.suspend()
+            self.ultrasonic.set_eco_mode(True)
+            if self.gui:
+                self.gui.update_state_display("🌙 โหมดพักอุปกรณ์ Eco-Sleep (พร้อมตื่นเมื่อมีคนเดินมา)", "#6C757D")
+            gc.collect()
+
+        elif new_state == SystemState.STANDBY:
+            if old_state == SystemState.ECO_SLEEP:
+                self.camera.resume()
+                self.ultrasonic.set_eco_mode(False)
             self.leds.set_standby()
             self.camera.set_active_mode(False)
             if self.gui:
                 self.gui.reset_to_standby()
-            # Immediately reclaim RAM on 1GB Pi
             gc.collect()
 
         elif new_state == SystemState.DETECTING:
+            if old_state == SystemState.ECO_SLEEP:
+                self.camera.resume()
+                self.ultrasonic.set_eco_mode(False)
             self.leds.set_detecting()
             self.camera.set_active_mode(True)
             if self.gui:
@@ -131,22 +178,26 @@ class CompanionService:
                 self.gui.update_state_display("🟢 รายละเอียดการทานยาประจำมื้อ", "#06D6A0")
 
     def _handle_person_detected(self, distance_cm: float):
-        """Called when ultrasonic detects sustained presence."""
-        if self.fsm.current_state != SystemState.STANDBY or self._is_announcing:
+        """Called when ultrasonic detects sustained presence or verified sniffer burst."""
+        if self.fsm.current_state not in (SystemState.STANDBY, SystemState.ECO_SLEEP) or self._is_announcing:
             return
 
-        logger.info(f"[Service] Person detected at {distance_cm:.1f} cm! Triggering recognition pipeline.")
-        self.fsm.transition_to(SystemState.DETECTING)
+        self._last_activity_time = time.time()
+        was_asleep = (self.fsm.current_state == SystemState.ECO_SLEEP)
+        if was_asleep:
+            logger.info(f"[Service] ⚡ WAKING UP from Eco-Sleep! Person detected at {distance_cm:.1f} cm.")
+        else:
+            logger.info(f"[Service] Person detected at {distance_cm:.1f} cm. Triggering recognition pipeline.")
 
-        # Run recognition in worker thread to prevent blocking
+        self.fsm.transition_to(SystemState.DETECTING)
         threading.Thread(target=self._run_recognition_pipeline, daemon=True).start()
 
     def _run_recognition_pipeline(self):
         try:
-            # Multi-frame retry: scan up to 5 frames (1.0s - 1.2s) as person steps in front of camera
             member_id = None
             confidence = 0.0
 
+            # Multi-frame retry: scan up to 6 frames (camera AE stabilizes rapidly)
             for attempt in range(6):
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
@@ -172,9 +223,10 @@ class CompanionService:
         except Exception as e:
             logger.error(f"[Service] Pipeline error: {e}")
             self.fsm.transition_to(SystemState.STANDBY)
+            self._last_activity_time = time.time()
 
     def _handle_recognized_member(self, member_id: str):
-        # Match case-insensitively with config member keys (e.g. 'Nine' -> 'nine')
+        self._last_activity_time = time.time()
         for k in self.repo.get_all_members().keys():
             if k.lower() == str(member_id).lower():
                 member_id = k
@@ -187,37 +239,31 @@ class CompanionService:
         slot_key, slot_data = self.scheduler.get_current_slot_for_member(member_id)
 
         if not slot_key or not slot_data:
-            # Outside meal times
-            msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
-            self._speak_and_finish(msg, has_meds=False)
+            # OUTSIDE REGULAR MEAL TIMES
+            self._handle_off_schedule_member(member_id, display_name, greeting)
             return
 
+        # INSIDE REGULAR MEAL TIME
         slot_label = slot_data.get("label", slot_key)
         before_meds = slot_data.get("before_meal", [])
         after_meds = slot_data.get("after_meal", [])
         all_meds = before_meds + after_meds
-
         self._active_member_slot = (member_id, slot_key)
 
         if not all_meds:
-            # Slot exists but no medications prescribed for this meal
             msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
-            self._speak_and_finish(msg, has_meds=False)
+            self._speak_friendly_with_antispam(member_id, msg)
             return
 
-        # Check adherence state
         if self.tracker.is_acknowledged(member_id, slot_key):
-            # Already acknowledged!
+            # Already acknowledged for this meal -> Anti-Spam protection applied
             msg = ThaiPhraseBuilder.build_already_taken_message(display_name)
             if self.gui:
                 self.gui.show_already_taken(display_name)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
-            self._speak_and_finish(msg, has_meds=False)
+            self._speak_friendly_with_antispam(member_id, msg)
 
         elif self.tracker.is_in_cooldown(member_id, slot_key, settings.COOLDOWN_PERSON_MINUTES):
-            # Reminded recently, follow-up politely
+            # Reminded recently, polite follow-up
             msg = ThaiPhraseBuilder.build_unacknowledged_followup(display_name)
             if self.gui:
                 self.gui.update_medication_display(display_name, slot_label, all_meds)
@@ -235,6 +281,87 @@ class CompanionService:
                 self.tracker.record_acknowledgement(member_id, slot_key)
             self._speak_and_finish(msg, has_meds=True)
 
+    def _handle_off_schedule_member(self, member_id: str, display_name: str, greeting: str):
+        """
+        Handles member presence outside normal meal window.
+        1. Checks for missed earlier meal
+        2. Applies Overdose Hazard Cutoff (< 60 min to next meal)
+        3. Applies Anti-Spam 60-min Cooldown for friendly greetings
+        """
+        missed_slot = self.scheduler.get_missed_earlier_slot(member_id, self.tracker)
+        if missed_slot:
+            prev_key, prev_data = missed_slot
+            prev_label = prev_data.get("label", prev_key)
+            before_meds = prev_data.get("before_meal", [])
+            after_meds = prev_data.get("after_meal", [])
+
+            # Check Overdose Hazard Window (< 60m to next meal)
+            is_hazard, diff_min, next_label = self.scheduler.is_overdose_hazard(
+                member_id, cutoff_minutes=settings.NEXT_MEAL_CUTOFF_MINUTES
+            )
+
+            if is_hazard and diff_min is not None:
+                # Overdose Hazard Warning
+                logger.warning(f"[Service] Medical Overdose Hazard: {diff_min}m remaining until {next_label}. Skipping catchup.")
+                msg = ThaiPhraseBuilder.build_overdose_hazard_warning(
+                    display_name, prev_label, next_label or "มื้อถัดไป", diff_min
+                )
+                if self.gui:
+                    self.gui.update_state_display(f"⚠️ ใกล้ถึงเวลามื้อ{next_label} (งดย้อนหลัง)", "#E63946")
+                self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
+                self._speak_and_finish(msg, has_meds=False)
+                return
+            else:
+                # Safe catch-up window (> 60m remaining)
+                logger.info(f"[Service] Safe catch-up reminder for missed meal: {prev_label}")
+                msg = ThaiPhraseBuilder.build_catchup_reminder(greeting, prev_label, before_meds, after_meds)
+                all_meds = before_meds + after_meds
+                if self.gui:
+                    self.gui.update_medication_display(display_name, f"ย้อนหลัง: {prev_label}", all_meds)
+                self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
+                self._active_member_slot = (member_id, prev_key)
+                self.tracker.record_reminder(member_id, prev_key)
+                if getattr(settings, "AUTO_ACKNOWLEDGE_ON_REMIND", True):
+                    self.tracker.record_acknowledgement(member_id, prev_key)
+                self._speak_and_finish(msg, has_meds=True)
+                return
+
+        # No missed meal -> Friendly Status with 60-min Anti-Spam protection
+        next_key, next_data, diff_min = self.scheduler.get_next_slot_for_member(member_id)
+        if next_data:
+            next_label = next_data.get("label", next_key)
+            next_time = next_data.get("start_time", "--:--")
+            msg = ThaiPhraseBuilder.build_next_meal_friendly_status(greeting, next_label, next_time)
+        else:
+            msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
+
+        self._speak_friendly_with_antispam(member_id, msg)
+
+    def _speak_friendly_with_antispam(self, member_id: str, text: str):
+        """
+        Applies 60-minute anti-spam cooldown for friendly / already-taken greetings.
+        If spoken recently, displays silent green LED acknowledgment without speaking.
+        """
+        now = time.time()
+        last_spoken = self._last_friendly_greeting_time.get(member_id, 0.0)
+        cooldown = getattr(settings, "FRIENDLY_GREETING_COOLDOWN_SEC", 3600.0)
+
+        if (now - last_spoken) < cooldown:
+            logger.info(f"[Service] Anti-Spam active for {member_id} (elapsed {(now - last_spoken):.0f}s < {cooldown:.0f}s). Silent Green LED acknowledgment.")
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
+            self.leds.set_announcing(has_meds=False)
+
+            def _silent_finish():
+                time.sleep(3.0)
+                self.fsm.transition_to(SystemState.STANDBY)
+                self._last_activity_time = time.time()
+
+            threading.Thread(target=_silent_finish, daemon=True).start()
+        else:
+            self._last_friendly_greeting_time[member_id] = now
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
+            self._speak_and_finish(text, has_meds=False)
+
     def _handle_unknown_visitor(self):
         msg = ThaiPhraseBuilder.build_unknown_visitor_message()
         self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
@@ -248,6 +375,7 @@ class CompanionService:
             self._is_announcing = False
             time.sleep(settings.COOLDOWN_HARDWARE_SEC)
             self.fsm.transition_to(SystemState.STANDBY)
+            self._last_activity_time = time.time()
 
         if audio_path:
             chime = settings.CHIME_FILE if getattr(settings, "PLAY_CHIME_BEFORE_SPEECH", False) else None
@@ -258,6 +386,7 @@ class CompanionService:
     def _handle_button_press(self):
         """Called when Physical Acknowledge Button or Screen Button is pressed."""
         logger.info("[Service] Acknowledge action received!")
+        self._last_activity_time = time.time()
 
         if self._active_member_slot:
             member_id, slot_key = self._active_member_slot
@@ -278,6 +407,7 @@ class CompanionService:
 
     def stop(self):
         logger.info("[Service] Shutting down service...")
+        self._running = False
         self.ultrasonic.stop_monitoring()
         self.camera.stop()
         if self.button:

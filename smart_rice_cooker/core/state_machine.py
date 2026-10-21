@@ -1,7 +1,7 @@
 """
 state_machine.py - Finite State Machine (FSM) for Companion Box
 Orchestrates transitions between STANDBY (Red LED), DETECTING (Yellow LED),
-and ANNOUNCING (Green LED) states.
+ANNOUNCING (Green LED), and ECO_SLEEP (All LEDs off, hardware sleeping).
 """
 
 from enum import Enum, auto
@@ -15,6 +15,7 @@ class SystemState(Enum):
     DETECTING = auto()  # Yellow LED: Scanning face, identifying person
     ANNOUNCING = auto() # Green LED: Announcing medication details & UI update
     COOLDOWN = auto()   # Short pause to prevent re-triggering
+    ECO_SLEEP = auto()  # All LEDs off, camera suspended, ultrasonic in sniffer mode
 
 class CompanionStateMachine:
     def __init__(self, on_state_change=None):

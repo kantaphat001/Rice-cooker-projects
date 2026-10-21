@@ -3,12 +3,17 @@ chcp 65001 >nul
 title Backup Pi Config - Raspberry Pi 4 Suite
 color 03
 
+set "TARGET_IP=172.20.1.21"
+if exist "%~dp0config_ip.txt" (
+    set /p TARGET_IP=<"%~dp0config_ip.txt"
+)
+
 echo ================================================================================
 echo    RASPBERRY PI 4 - CONFIGURATION BACKUP UTILITY
 echo ================================================================================
 echo  เลือกเครื่องที่ต้องการสำรองข้อมูลการตั้งค่า:
 echo.
-echo   [1] เครื่องหลัก (IP: 192.168.88.74) [กด Enter ได้ทันที]
+echo   [1] เครื่องหลัก (IP: %TARGET_IP%) [กด Enter ได้ทันที]
 echo   [2] ระบุหมายเลข IP อื่นด้วยตนเอง
 echo.
 set TARGET_CHOICE=1
@@ -16,8 +21,6 @@ set /p TARGET_CHOICE="เลือกหมายเลข (1, 2, เริ่�
 
 if "%TARGET_CHOICE%"=="2" (
     set /p TARGET_IP="ระบุหมายเลข IP ของ Raspberry Pi: "
-) else (
-    set "TARGET_IP=192.168.88.74"
 )
 
 set "BACKUP_DIR=%~dp0backups\%TARGET_IP%"
@@ -31,7 +34,6 @@ ssh -o StrictHostKeyChecking=no pi@%TARGET_IP% "rm -f /tmp/pi_config_backup.tar.
 
 echo.
 echo ================================================================================
-echo  [+] สำรองข้อมูลคอนฟิกเรียบร้อยแล้ว ที่โฟลเดอร์:
-echo      %BACKUP_DIR%
+echo  [+] สำรองข้อมูลเรียบร้อยแล้ว ที่โฟลเดอร์: %BACKUP_DIR%
 echo ================================================================================
 pause

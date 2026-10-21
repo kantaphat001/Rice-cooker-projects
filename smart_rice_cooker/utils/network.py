@@ -5,8 +5,8 @@ Resolves the Raspberry Pi IP dynamically across different Wi-Fi environments.
 
 import os
 import socket
-
 import time
+from pathlib import Path
 
 DEFAULT_PI_IP = "192.168.88.74"
 _CACHED_PI_IP = None
@@ -21,6 +21,16 @@ def get_pi_ip(fallback: str = DEFAULT_PI_IP, max_age: float = 60.0) -> str:
     env_ip = os.getenv("PI_IP")
     if env_ip:
         return env_ip
+    
+    # Priority 1: Check config_ip.txt
+    cfg_file = Path(__file__).resolve().parent.parent.parent / "config_ip.txt"
+    if cfg_file.exists():
+        try:
+            saved_ip = cfg_file.read_text(encoding="utf-8").strip()
+            if saved_ip:
+                return saved_ip
+        except Exception:
+            pass
     
     now = time.time()
     if _CACHED_PI_IP and (now - _CACHE_TIME) < max_age:
