@@ -16,7 +16,8 @@ DATASET_DIR = BASE_DIR / "dataset"
 IMAGES_DIR = BASE_DIR / "images"
 
 # RAM Disk for SD Card Flash Protection (writes temporary TTS and state to RAM)
-AUDIO_TEMP_DIR = Path("/dev/shm/smart_cooker_audio") if Path("/dev/shm").exists() else Path("/tmp/smart_cooker_audio")
+import tempfile
+AUDIO_TEMP_DIR = Path("/dev/shm/smart_cooker_audio") if Path("/dev/shm").exists() else (Path("/tmp/smart_cooker_audio") if Path("/tmp").exists() else Path(tempfile.gettempdir()) / "smart_cooker_audio")
 try:
     AUDIO_TEMP_DIR.mkdir(parents=True, exist_ok=True)
 except Exception:

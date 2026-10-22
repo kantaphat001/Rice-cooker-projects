@@ -1,11 +1,12 @@
 /**
  * Smart Rice Cooker - Apple Health Medication Schedule Board (2026 Edition)
- * Borderless, elevated meal sections with soft ambient grouping and pastel medication tiles.
+ * Borderless, elevated meal sections with soft ambient grouping and interactive meal timing controls.
  */
 
 import { store } from '../state.js';
 import { getMedTheme } from '../theme.js';
 import { saveConfig } from '../api.js';
+import { showToast } from './toast.js';
 
 export function renderScheduleBoard() {
   const container = document.getElementById('schedule-board-container');
@@ -36,22 +37,29 @@ export function renderScheduleBoard() {
 
     return `
       <div id="meal-section-${key}" class="glass-card rounded-3xl p-5 sm:p-6 space-y-4 scroll-mt-20">
-        <!-- Meal Header -->
-        <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div class="flex items-center gap-3">
+        <!-- Meal Header with Interactive Time Window Controls -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div class="flex items-start sm:items-center gap-3">
             <span class="text-2xl sm:text-3xl">${icon}</span>
             <div>
               <h3 class="font-bold text-slate-800 text-base sm:text-lg">
                 ${slot.label}
               </h3>
-              <p class="text-xs text-slate-500 font-medium">
-                ช่วงเวลา: ${slot.start_time || '00:00'} - ${slot.end_time || '00:00'} น.
-              </p>
+              <!-- Interactive Meal Time Window Editor (Instant Sync to Pi) -->
+              <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                <span class="text-xs text-slate-500 font-medium">⏰ ช่วงเวลา:</span>
+                <input type="time" class="input-slot-time-start text-xs font-semibold px-2 py-0.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none" data-slot="${key}" value="${slot.start_time || '00:00'}">
+                <span class="text-xs text-slate-400">-</span>
+                <input type="time" class="input-slot-time-end text-xs font-semibold px-2 py-0.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none" data-slot="${key}" value="${slot.end_time || '00:00'}">
+                <button data-slot="${key}" class="btn-save-slot-time text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 transition active:scale-95 shadow-2xs" title="บันทึกช่วงเวลานี้">
+                  💾 บันทึกเวลา
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- Add Med Action Button -->
-          <button data-add-meal="${key}" class="btn-add-med-slot apple-button px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm flex items-center gap-1.5 shadow-xs">
+          <button data-add-meal="${key}" class="btn-add-med-slot apple-button px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm flex items-center gap-1.5 shadow-xs self-end sm:self-auto">
             <span>➕</span>
             <span>เพิ่มยา</span>
           </button>
@@ -94,6 +102,43 @@ export function renderScheduleBoard() {
       </div>
     `;
   }).join('');
+
+  // Attach Save Time Handlers
+  container.querySelectorAll('.btn-save-slot-time').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const slotKey = btn.getAttribute('data-slot');
+      const section = document.getElementById(`meal-section-${slotKey}`);
+      const startTime = section?.querySelector(`.input-slot-time-start[data-slot="${slotKey}"]`)?.value;
+      const endTime = section?.querySelector(`.input-slot-time-end[data-slot="${slotKey}"]`)?.value;
+
+      if (!startTime || !endTime) {
+        showToast('กรุณาระบุเวลาเริ่มต้นและสิ้นสุดให้ครบถ้วน', 'error');
+        return;
+      }
+
+      const { configData, currentMemberId } = store.getState();
+      const newConfig = JSON.parse(JSON.stringify(configData));
+      const member = newConfig.members[currentMemberId];
+      if (!member || !member.schedules || !member.schedules[slotKey]) return;
+
+      member.schedules[slotKey].start_time = startTime;
+      member.schedules[slotKey].end_time = endTime;
+
+      const oldHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ บันทึก...</span>';
+
+      const ok = await saveConfig(newConfig);
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+
+      if (ok) {
+        showToast(`บันทึกเวลา ${member.schedules[slotKey].label || slotKey} (${startTime} - ${endTime} น.) สำเร็จ และซิงค์ขึ้นบอร์ดแล้ว!`, 'success');
+      } else {
+        showToast('ไม่สามารถบันทึกเวลาได้ กรุณาลองใหม่อีกครั้ง', 'error');
+      }
+    });
+  });
 
   // Attach Delete Handlers
   container.querySelectorAll('.btn-delete-med').forEach((btn) => {

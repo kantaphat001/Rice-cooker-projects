@@ -56,7 +56,7 @@ class TTSEngine:
     async def _generate_async(self, text: str, output_path: Path):
         communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
         # 4.0s timeout to prevent thread stalling if network drops
-        await asyncio.wait_for(communicate.save(str(output_path)), timeout=4.0)
+        await asyncio.wait_for(communicate.save(str(output_path)), timeout=15.0)
 
     def synthesize(self, text: str) -> Optional[Path]:
         """

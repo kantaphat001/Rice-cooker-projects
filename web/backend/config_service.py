@@ -59,6 +59,11 @@ def save_config(config_data: Dict[str, Any]) -> bool:
 
 def _sync_config_to_pi() -> None:
     """Synchronize med_config.json to Raspberry Pi in the background."""
+    try:
+        if CONFIG_PATH.resolve() == Path(f"/home/{PI_USER}/med_config.json").resolve():
+            return
+    except Exception:
+        pass
     if not PARAMIKO_AVAILABLE:
         return
     pi_ip = get_pi_ip()

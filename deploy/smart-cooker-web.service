@@ -1,0 +1,18 @@
+[Unit]
+Description=Smart Rice Cooker Web Management Portal
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /home/pi/web_manager.py
+Restart=always
+RestartSec=3s
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
