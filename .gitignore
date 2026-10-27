@@ -1,7 +1,9 @@
 # Runtime outputs & User data (Privacy Guard)
 dataset/
+*_backup*/
 images/meds/
 audio_cache/
+*.mp3
 *.onnx
 *.jpg
 *.jpeg

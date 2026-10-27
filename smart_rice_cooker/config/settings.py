@@ -67,7 +67,7 @@ FACE_RECOGNITION_THRESHOLD = 0.70  # Cosine similarity for family matching (0.70
 
 # Audio & Thai TTS (Elderly-Friendly Tuning)
 VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Voice (Premwadee)
-VOICE_RATE = os.getenv("VOICE_RATE", "-18%")                   # Gentle slower rate (-18%) for elderly clarity
+VOICE_RATE = os.getenv("VOICE_RATE", "-10%")                   # Gentle, clear natural cadence (-10%) for elderly clarity
 CHIME_FILE = AUDIO_CACHE_DIR / "chime.mp3"                     # Soft pre-announcement chime (optional)
 PLAY_CHIME_BEFORE_SPEECH = False                               # Disabled chime as requested by user
 AUDIO_PLAYER_CMD = os.getenv("AUDIO_PLAYER_CMD", "mpg123 -q")
@@ -75,8 +75,9 @@ AUDIO_PLAYER_CMD = os.getenv("AUDIO_PLAYER_CMD", "mpg123 -q")
 # State, Cooldowns & Medical Safety Guards
 COOLDOWN_HARDWARE_SEC = 10
 COOLDOWN_PERSON_MINUTES = 20
-FRIENDLY_GREETING_COOLDOWN_SEC = 3600.0  # 60 min anti-spam cooldown for friendly non-med greetings
+FRIENDLY_GREETING_COOLDOWN_SEC = 60.0    # 1 min anti-spam cooldown for friendly non-med greetings (prevents muting)
 NEXT_MEAL_CUTOFF_MINUTES = 60            # Overdose protection: If <60m to next meal, skip catchup
+ENABLE_MISSED_MEAL_CATCHUP = False       # If missed, skip reminder as requested (no nagging/overdose)
 
 # Medication and State Persistence Files
 CONFIG_FILE = BASE_DIR / "med_config.json"

@@ -33,11 +33,13 @@ def main():
     print("  [2] รีสตาร์ตเซอร์วิส (Restart Service)")
     print("  [3] หยุดการทำงาน (Stop Service)")
     print("  [4] เริ่มการทำงาน (Start Service)")
+    print("  [5] ปิดเครื่อง Raspberry Pi (Safe Shutdown)")
+    print("  [6] รีบูตบอร์ด Raspberry Pi (Reboot)")
     print("  [0] ออกจากโปรแกรม")
     print("=" * 70)
 
     try:
-        choice = input("เลือกคำสั่ง (1, 2, 3, 4, 0): ").strip()
+        choice = input("เลือกคำสั่ง (1, 2, 3, 4, 5, 6, 0): ").strip()
     except EOFError:
         choice = "0"
 
@@ -72,6 +74,20 @@ def main():
         print("\n[*] กำลังเริ่มเซอร์วิส...")
         ssh.exec_command(f"echo {PI_PASS} | sudo -S systemctl start smart-cooker.service")
         print("[+] สั่งเริ่มเซอร์วิสเรียบร้อยแล้ว!")
+
+    elif choice == "5":
+        print("\n[*] กำลังส่งคำสั่งปิดเครื่อง Raspberry Pi อย่างปลอดภัย...")
+        ssh.close()
+        from deploy.shutdown_pi import shutdown_pi
+        shutdown_pi(reboot=False)
+        return
+
+    elif choice == "6":
+        print("\n[*] กำลังส่งคำสั่งรีบูต Raspberry Pi...")
+        ssh.close()
+        from deploy.shutdown_pi import shutdown_pi
+        shutdown_pi(reboot=True)
+        return
 
     ssh.close()
     print("\n[+] ดำเนินการสำเร็จ")

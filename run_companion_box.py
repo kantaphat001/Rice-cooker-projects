@@ -5,6 +5,8 @@ Features:
 - Auto-syncs updated code and configs to Raspberry Pi
 - Streams live logs in real-time with full UTF-8 Thai text support
 - Interactive Ctrl+C handling to stop remote service cleanly
+- Smart fallback connection across LAN, Wi-Fi, and mDNS
+- Inline Auto-Fix recovery with zero user friction
 """
 
 import sys
@@ -12,6 +14,7 @@ import os
 import time
 import argparse
 import io
+from pathlib import Path
 
 # Ensure UTF-8 output on Windows console
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -27,28 +30,63 @@ import re
 from pc_audio import play_cached_file
 from smart_rice_cooker.utils import get_pi_ip
 
+ROOT_DIR = Path(__file__).resolve().parent
+CONFIG_IP_FILE = ROOT_DIR / "config_ip.txt"
+
 PI_IP = get_pi_ip()
 PI_USER = "pi"
 PI_PASS = "1234"
+
+
+def save_active_ip(ip: str):
+    try:
+        CONFIG_IP_FILE.write_text(ip.strip(), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def connect_ssh_with_fallback(primary_ip: str):
+    """Attempts connection to primary IP, then tries common fallbacks."""
+    candidates = [primary_ip]
+    for alt in ["raspberrypi.local", "192.168.137.200", "192.168.88.74", "169.254.124.200"]:
+        if alt not in candidates:
+            candidates.append(alt)
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    for ip in candidates:
+        try:
+            print(f"[*] กำลังเชื่อมต่อ SSH ไปยัง {ip}...")
+            ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=3.5)
+            print(f"[+] เชื่อมต่อไปยัง {ip} สำเร็จเรียบร้อยแล้ว!")
+            if ip != primary_ip:
+                save_active_ip(ip)
+            return ssh, ip
+        except Exception as e:
+            print(f"    [-] ไม่สามารถเชื่อมต่อ {ip}: {e}")
+
+    ssh.close()
+    return None, None
+
 
 def sync_code(ssh):
     print("[*] กำลังตรวจสอบและซิงค์โค้ดไปยัง Raspberry Pi...")
     sftp = ssh.open_sftp()
     local_root = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Sync smart_rice_cooker directory
     for root, dirs, files in os.walk(os.path.join(local_root, "smart_rice_cooker")):
-        # Skip pycache, git, dataset, audio_cache
         dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", "dataset", "audio_cache")]
         rel_dir = os.path.relpath(root, local_root).replace("\\", "/")
         remote_dir = f"/home/{PI_USER}/{rel_dir}"
-        
+
         try:
             sftp.stat(remote_dir)
         except IOError:
             _, sout, _ = ssh.exec_command(f"mkdir -p '{remote_dir}'")
             sout.channel.recv_exit_status()
-            
+
         for file in files:
             if file.endswith((".py", ".json", ".txt")) and not file.endswith(".pyc"):
                 loc_file = os.path.join(root, file)
@@ -60,23 +98,21 @@ def sync_code(ssh):
     if os.path.exists(cfg):
         sftp.put(cfg, f"/home/{PI_USER}/med_config.json")
 
-    # Sync audio cache
+    # Sync audio cache files
     audio_dir = os.path.join(local_root, "audio_cache")
-    if os.path.isdir(audio_dir):
-        try:
-            sftp.stat(f"/home/{PI_USER}/audio_cache")
-        except IOError:
-            _, sout, _ = ssh.exec_command(f"mkdir -p '/home/{PI_USER}/audio_cache'")
-            sout.channel.recv_exit_status()
+    if os.path.exists(audio_dir):
+        _, sout, _ = ssh.exec_command(f"mkdir -p '/home/{PI_USER}/audio_cache'")
+        sout.channel.recv_exit_status()
         for f in os.listdir(audio_dir):
             if f.endswith(".mp3"):
                 try:
                     sftp.put(os.path.join(audio_dir, f), f"/home/{PI_USER}/audio_cache/{f}")
                 except Exception:
                     pass
-        
+
     sftp.close()
     print("[+] ซิงค์ไฟล์ล่าสุดสำเร็จเรียบร้อยแล้ว!")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Smart Rice Cooker Windows Runner")
@@ -96,16 +132,28 @@ def main():
     print(f" Mode     : {'Camera-Only Mode (ต่อเฉพาะกล้อง USB)' if mode_flag else 'Full Hardware Mode'}")
     print("=" * 70)
 
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    
-    try:
-        print(f"[*] กำลังเชื่อมต่อ SSH ไปยัง {PI_IP}...")
-        ssh.connect(PI_IP, username=PI_USER, password=PI_PASS, timeout=8)
-        print("[+] เชื่อมต่อสำเร็จ!")
-    except Exception as e:
-        print(f"[!] ไม่สามารถเชื่อมต่อไปยัง {PI_IP}: {e}")
-        return
+    ssh, connected_ip = connect_ssh_with_fallback(PI_IP)
+
+    if not ssh:
+        print("\n" + "=" * 70)
+        print(" [!] ไม่สามารถเชื่อมต่อไปยังบอร์ด Raspberry Pi ได้ในขณะนี้")
+        print("=" * 70)
+        print(" กำลังเปิดระบบซ่อมแซมและดึงบอร์ดเข้าสู่ระบบอัตโนมัติ (Auto-Fix)...")
+        try:
+            from tools.auto_fix_connection import wait_for_pi_dhcp, provision_wifi_via_ssh
+            assigned = wait_for_pi_dhcp(timeout_sec=40)
+            target = assigned or "169.254.124.200"
+            new_ip = provision_wifi_via_ssh(target)
+            if new_ip:
+                ssh, connected_ip = connect_ssh_with_fallback(new_ip)
+        except Exception as e:
+            print(f"[!] Auto-fix note: {e}")
+
+        if not ssh:
+            print("\n" + "=" * 70)
+            print(" หากยังเชื่อมต่อไม่ได้ แนะนำให้ดับเบิลคลิก 'Enable-LAN-Internet.bat' เพื่อแชร์เน็ต")
+            print("=" * 70 + "\n")
+            return
 
     try:
         sync_code(ssh)
@@ -164,21 +212,17 @@ def main():
                 sys.stderr.flush()
             if channel.exit_status_ready():
                 break
-            time.sleep(0.05)
+            time.sleep(0.02)
     except KeyboardInterrupt:
-        print("\n\n[*] ผู้ใช้สั่งหยุดระบบ (Ctrl+C)... กำลังปิดเซอร์วิส...")
+        print("\n\n[*] ได้รับคำสั่งหยุด (Ctrl+C)... กำลังปิดโปรแกรมบน Raspberry Pi...")
         channel.close()
     finally:
-        if sftp:
-            try:
-                sftp.close()
-            except Exception:
-                pass
         if service_was_running:
-            print("[*] กำลังเปิด background service กลับคืน...")
+            print("[*] กำลังเปิด background service กลับคืนสู่สถานะเดิม...")
             ssh.exec_command("sudo systemctl start smart-cooker.service")
         ssh.close()
-        print("\n[+] ระบบปิดการทำงานเรียบร้อยแล้ว")
+        print("[+] ปิดการเชื่อมต่อเรียบร้อยแล้ว สวัสดีครับ")
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()

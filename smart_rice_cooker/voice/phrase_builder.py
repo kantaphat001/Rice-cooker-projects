@@ -14,8 +14,8 @@ class ThaiPhraseBuilder:
     @staticmethod
     def _format_med_item(m: Dict[str, Any]) -> str:
         """Formats a medicine item with clear plain language and color cues for elderly users."""
-        name = m.get("name", "").strip()
-        dosage = m.get("dosage", "").strip()
+        name = m.get("name", "").replace("\u0e40\u0e40", "\u0e41").strip()
+        dosage = m.get("dosage", "").replace("(", "").replace(")", "").strip()
         color = m.get("color_tag") or m.get("location")
         instructions = m.get("instructions")
 
@@ -34,7 +34,7 @@ class ThaiPhraseBuilder:
 
     @staticmethod
     def _clean_greeting(greeting: str) -> str:
-        """Normalizes and polishes greetings to match Premwadee Neural voice tone."""
+        """Normalizes and polishes greetings to match Premwadee Neural voice tone without stuttering."""
         g = (greeting or "").strip()
         for suffix in ["นะคะ", "นะครับ", "ครับ", "ค่ะ", "คะ"]:
             if g.endswith(suffix):
@@ -42,19 +42,19 @@ class ThaiPhraseBuilder:
                 break
         if not g:
             return "สวัสดีค่ะ"
-        if not g.startswith("สวัสดี"):
-            g = f"สวัสดีค่ะ{g}"
-        elif not g.startswith("สวัสดีค่ะ"):
-            if g.startswith("สวัสดีครับ"):
-                g = "สวัสดีค่ะ" + g[10:].strip()
-            elif g.startswith("สวัสดี"):
-                g = "สวัสดีค่ะ" + g[6:].strip()
-        return g
+        for prefix in ["สวัสดีค่ะ", "สวัสดีครับ", "สวัสดีคะ", "สวัสดีจ้า", "สวัสดี"]:
+            if g.startswith(prefix):
+                name = g[len(prefix):].strip()
+                return f"สวัสดีค่ะ{name}" if name else "สวัสดีค่ะ"
+        return f"สวัสดีค่ะ{g}"
 
     @staticmethod
     def build_full_meal_announcement(greeting: str, slot_label: str, before_meds: List[Dict], after_meds: List[Dict]) -> str:
         """Constructs a warm, polite, and elegant meal announcement."""
         g = ThaiPhraseBuilder._clean_greeting(greeting)
+        if not before_meds and not after_meds:
+            return f"{g} ตอนนี้ได้เวลาสำหรับ{slot_label}แล้วนะคะ มื้อนี้ไม่มีรายการยาที่ต้องรับประทานค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"
+
         parts = [f"{g} ตอนนี้ได้เวลาสำหรับ{slot_label}แล้วนะคะ เครื่องเตือนยาขออนุญาตแจ้งรายการยานะคะ"]
 
         if before_meds:

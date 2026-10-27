@@ -24,10 +24,11 @@ def get_local_ip() -> str:
         return '127.0.0.1'
 
 
-def get_pi_ip(timeout: float = 2.0) -> str:
+def get_pi_ip(timeout: float = 0.3) -> str:
     """
     Discover Raspberry Pi IP on the local network.
     Checks config_ip.txt first, then memory cache, then attempts mDNS (raspberrypi.local).
+    Caches results aggressively to prevent UI latency.
     """
     global _CACHED_PI_IP, _CACHED_PI_TIME
 
@@ -59,7 +60,7 @@ def get_pi_ip(timeout: float = 2.0) -> str:
     fallback_ip = '192.168.88.74'
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
+        s.settimeout(min(timeout, 0.3))
         if s.connect_ex((fallback_ip, 22)) == 0:
             s.close()
             _CACHED_PI_IP = fallback_ip
@@ -69,4 +70,7 @@ def get_pi_ip(timeout: float = 2.0) -> str:
     except Exception:
         pass
 
+    # Cache fallback result so subsequent calls take <0.0001s
+    _CACHED_PI_IP = fallback_ip
+    _CACHED_PI_TIME = now
     return fallback_ip

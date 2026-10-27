@@ -251,6 +251,24 @@ class CompanionService:
         self._active_member_slot = (member_id, slot_key)
 
         if not all_meds:
+            if getattr(settings, "ENABLE_MISSED_MEAL_CATCHUP", False):
+                missed_slot = self.scheduler.get_missed_earlier_slot(member_id, self.tracker)
+                if missed_slot:
+                    prev_key, prev_data = missed_slot
+                    prev_label = prev_data.get("label", prev_key)
+                    prev_before = prev_data.get("before_meal", [])
+                    prev_after = prev_data.get("after_meal", [])
+                    logger.info(f"[Service] Current slot {slot_key} has no meds, but missed earlier meal: {prev_label}")
+                    msg = ThaiPhraseBuilder.build_catchup_reminder(greeting, prev_label, prev_before, prev_after)
+                    all_prev = prev_before + prev_after
+                    if self.gui:
+                        self.gui.update_medication_display(display_name, f"ย้อนหลัง: {prev_label}", all_prev)
+                    self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
+                    self._active_member_slot = (member_id, prev_key)
+                    self.tracker.record_reminder(member_id, prev_key)
+                    self._speak_and_finish(msg, has_meds=True)
+                    return
+
             msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
             self._speak_friendly_with_antispam(member_id, msg)
             return
@@ -269,24 +287,24 @@ class CompanionService:
         Competition & Demo Hardened: If outside normal meal window, still politely announces
         the closest upcoming meal and its medications so judges always see a complete working demo!
         """
-        missed_slot = self.scheduler.get_missed_earlier_slot(member_id, self.tracker)
-        if missed_slot:
-            prev_key, prev_data = missed_slot
-            prev_label = prev_data.get("label", prev_key)
-            before_meds = prev_data.get("before_meal", [])
-            after_meds = prev_data.get("after_meal", [])
+        if getattr(settings, "ENABLE_MISSED_MEAL_CATCHUP", False):
+            missed_slot = self.scheduler.get_missed_earlier_slot(member_id, self.tracker)
+            if missed_slot:
+                prev_key, prev_data = missed_slot
+                prev_label = prev_data.get("label", prev_key)
+                before_meds = prev_data.get("before_meal", [])
+                after_meds = prev_data.get("after_meal", [])
 
-            # Catch-up reminder with full medication list
-            logger.info(f"[Service] Demo/Catch-up reminder for missed meal: {prev_label}")
-            msg = ThaiPhraseBuilder.build_catchup_reminder(greeting, prev_label, before_meds, after_meds)
-            all_meds = before_meds + after_meds
-            if self.gui:
-                self.gui.update_medication_display(display_name, f"ย้อนหลัง: {prev_label}", all_meds)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
-            self._active_member_slot = (member_id, prev_key)
-            self.tracker.record_reminder(member_id, prev_key)
-            self._speak_and_finish(msg, has_meds=True)
-            return
+                logger.info(f"[Service] Catch-up reminder for missed meal: {prev_label}")
+                msg = ThaiPhraseBuilder.build_catchup_reminder(greeting, prev_label, before_meds, after_meds)
+                all_meds = before_meds + after_meds
+                if self.gui:
+                    self.gui.update_medication_display(display_name, f"ย้อนหลัง: {prev_label}", all_meds)
+                self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
+                self._active_member_slot = (member_id, prev_key)
+                self.tracker.record_reminder(member_id, prev_key)
+                self._speak_and_finish(msg, has_meds=True)
+                return
 
         # No missed meal -> Announce next upcoming meal and its medication list for judges!
         next_key, next_data, diff_min = self.scheduler.get_next_slot_for_member(member_id)

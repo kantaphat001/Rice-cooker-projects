@@ -1,7 +1,8 @@
 """
 audio_player.py - High-Fidelity Audio Playback Driver
 Features:
-- Uses mpg123 -q to play MP3 natively (avoids static white noise from aplay)
+- Uses mpg123 -q on Linux to play MP3 natively
+- Native Pygame audio playback fallback on Windows
 - Wakes up audio device to eliminate first-syllable cutoff latency
 - Thread-safe non-blocking audio queue
 """
@@ -18,20 +19,39 @@ from ..config.settings import AUDIO_PLAYER_CMD
 
 logger = logging.getLogger(__name__)
 
+
 class AudioPlayer:
     def __init__(self, player_cmd: str = AUDIO_PLAYER_CMD):
         self.player_cmd = player_cmd
         self._lock = threading.Lock()
-        self._is_available = bool(shutil.which("mpg123"))
+        self._is_mpg123 = bool(shutil.which("mpg123"))
 
-        if not self._is_available:
-            logger.warning("[AudioPlayer] 'mpg123' executable not found in PATH. Audio will be simulated.")
+        # Test pygame availability
+        self._is_pygame = False
+        if not self._is_mpg123:
+            try:
+                import pygame
+                pygame.mixer.init()
+                self._is_pygame = True
+                logger.info("[AudioPlayer] Using Pygame audio engine on Windows.")
+            except Exception as e:
+                logger.warning(f"[AudioPlayer] Pygame init failed: {e}. Audio will be simulated.")
+
+    def _play_file_raw(self, path: str):
+        if self._is_mpg123:
+            # -b 2048: 2MB RAM read-ahead buffer prevents ALSA buffer underrun and eliminates audio stuttering
+            subprocess.run(["mpg123", "-b", "2048", "-q", path], check=False)
+        elif self._is_pygame:
+            try:
+                import pygame
+                pygame.mixer.music.load(path)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.05)
+            except Exception as e:
+                logger.error(f"[AudioPlayer] Pygame playback error: {e}")
 
     def play_with_chime(self, file_path: Path, chime_path: Optional[Path] = None, on_finished: Optional[Callable] = None, blocking: bool = False):
-        """
-        Plays soft chime sound first (to gently alert the elderly without startling them),
-        pauses 0.4s, then plays the main announcement audio.
-        """
         if not file_path or not Path(file_path).is_file():
             logger.warning(f"[AudioPlayer] Invalid audio file: {file_path}")
             if on_finished:
@@ -43,15 +63,12 @@ class AudioPlayer:
                 try:
                     if chime_path and Path(chime_path).is_file():
                         logger.info(f"[AudioPlayer] 🔔 Playing chime: {Path(chime_path).name}")
-                        if self._is_available:
-                            subprocess.run(["mpg123", "-q", str(chime_path)], check=False)
+                        self._play_file_raw(str(chime_path))
                         time.sleep(0.4)
 
-                    if self._is_available:
-                        logger.info(f"[AudioPlayer] 🔊 Playing: {Path(file_path).name}")
-                        subprocess.run(["mpg123", "-q", str(file_path)], check=False)
-                    else:
-                        logger.info(f"[AudioPlayer MOCK] 🔊 Simulated playing: {Path(file_path).name}")
+                    logger.info(f"[AudioPlayer] 🔊 Playing: {Path(file_path).name}")
+                    self._play_file_raw(str(file_path))
+
                 except Exception as e:
                     logger.error(f"[AudioPlayer] Playback error: {e}")
                 finally:

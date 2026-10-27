@@ -47,6 +47,7 @@ function Show-Menu {
     Write-Host "  [14] Test USB Camera     (ทดสอบกล้องเว็บแคม)    [17] Python and uv Status(ตรวจเวอร์ชัน Python)" -ForegroundColor White
     Write-Host "  [15] Test Audio Speaker  (ทดสอบเสียงลำโพง)      [18] Emergency Port Fix (รีเซ็ตวงจร USB)" -ForegroundColor White
     Write-Host "  [19] Test System Integration (ทดสอบเชื่อมโยงข้อมูลเว็บ และซิงค์ไปยัง Pi)" -ForegroundColor Green
+    Write-Host "  [20] Find & Connect Pi / Network Provisioner (ค้นหา IP และจัดการต่อเน็ตผ่าน LAN/Wi-Fi)" -ForegroundColor Magenta
     Write-Host "----------------------------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  [R] Safe Reboot    [S] Safe Shutdown    [0] Exit (ออกจากโปรแกรม)" -ForegroundColor Yellow
     Write-Host "========================================================================================" -ForegroundColor Cyan
@@ -226,6 +227,12 @@ while ($true) {
             Write-Host "    ทดสอบการเชื่อมโยงระบบ (เว็บแมนเนจเจอร์ <-> ตารางยา <-> บอร์ด Pi)" -ForegroundColor Green
             Write-Host "================================================================================" -ForegroundColor Cyan
             python (Join-Path $project_dir "test_integration.py")
+            Write-Host "`nกด Enter เพื่อกลับสู่เมนูหลัก..." -ForegroundColor Gray
+            Read-Host
+        }
+        "20" {
+            Clear-Host
+            python (Join-Path $project_dir "tools\find_pi.py")
             Write-Host "`nกด Enter เพื่อกลับสู่เมนูหลัก..." -ForegroundColor Gray
             Read-Host
         }

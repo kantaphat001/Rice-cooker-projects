@@ -153,6 +153,20 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             self._send_json(status)
             return
 
+        if path == '/api/pi/shutdown':
+            import threading
+            from deploy.shutdown_pi import shutdown_pi
+            threading.Thread(target=shutdown_pi, kwargs={"reboot": False}, daemon=True).start()
+            self._send_json({"success": True, "message": "ส่งคำสั่งปิดเครื่อง Raspberry Pi เรียบร้อยแล้ว ไฟจะดับลงใน 5-10 วินาที"})
+            return
+
+        if path == '/api/pi/reboot':
+            import threading
+            from deploy.shutdown_pi import shutdown_pi
+            threading.Thread(target=shutdown_pi, kwargs={"reboot": True}, daemon=True).start()
+            self._send_json({"success": True, "message": "ส่งคำสั่งรีบูต Raspberry Pi เรียบร้อยแล้ว บอร์ดจะเริ่มใหม่ใน 20-30 วินาที"})
+            return
+
         # 3. PWA Assets
         if path == '/manifest.json':
             body = json.dumps(MANIFEST_JSON, ensure_ascii=False).encode('utf-8')

@@ -7,12 +7,11 @@
         "morning": {
           "label": "มื้อเช้า",
           "start_time": "06:00",
-          "end_time": "09:30",
+          "end_time": "11:30",
           "before_meal": [
             {
-              "name": "ยาโรคกระเพาะ",
-              "dosage": "1 เม็ด (ก่อนอาหาร 30 นาที)",
-              "color_tag": "ซองสีฟ้า",
+              "name": "ยารักษาโรคกระเพาะ",
+              "dosage": "1 เม็ด ก่อนอาหาร 30 นาที",
               "image": "images/meds/gastric.jpg"
             }
           ],
@@ -20,25 +19,29 @@
             {
               "name": "ยาลดความดัน",
               "dosage": "1 เม็ด",
-              "color_tag": "ซองสีเขียว",
               "image": "images/meds/blood_pressure.jpg"
             },
             {
-              "name": "ยาบำรุงหัวใจ",
+              "name": "ยา บำรุงหัวใจ",
               "dosage": "1 เม็ด",
-              "color_tag": "ซองสีชมพู",
               "image": "images/meds/heart.jpg"
             }
           ]
         },
         "noon": {
           "label": "มื้อกลางวัน",
-          "start_time": "11:30",
-          "end_time": "13:30",
-          "before_meal": [],
+          "start_time": "11:31",
+          "end_time": "14:30",
+          "before_meal": [
+            {
+              "name": "ยาลดเบาหวาน",
+              "dosage": "1 เม็ด",
+              "color_tag": "ซองสีชมพู"
+            }
+          ],
           "after_meal": [
             {
-              "name": "ยาเบาหวาน",
+              "name": "ยาลดเบาหวาน",
               "dosage": "1 เม็ด",
               "image": "images/meds/diabetes.jpg"
             }
@@ -46,12 +49,18 @@
         },
         "evening": {
           "label": "มื้อเย็น",
-          "start_time": "17:30",
+          "start_time": "14:31",
           "end_time": "20:00",
-          "before_meal": [],
+          "before_meal": [
+            {
+              "name": "ยาลดไข้",
+              "dosage": "1 เม็ด",
+              "color_tag": "ซองสีฟ้า"
+            }
+          ],
           "after_meal": [
             {
-              "name": "ยาลดไขมันในเส้นเลือด",
+              "name": "ยาควบคุมไขมัน",
               "dosage": "1 เม็ด",
               "image": "images/meds/cholesterol.jpg"
             }
@@ -59,12 +68,12 @@
         },
         "bedtime": {
           "label": "ก่อนนอน",
-          "start_time": "21:00",
+          "start_time": "20:01",
           "end_time": "22:30",
           "before_meal": [],
           "after_meal": [
             {
-              "name": "ยาช่วยปรับการนอนหลับ",
+              "name": "ยานอนหลับ",
               "dosage": "ครึ่งเม็ด",
               "image": "images/meds/sleep.jpg"
             }
@@ -79,11 +88,11 @@
         "morning": {
           "label": "มื้อเช้า",
           "start_time": "06:30",
-          "end_time": "09:30",
+          "end_time": "12:00",
           "before_meal": [],
           "after_meal": [
             {
-              "name": "ยาวิตามินรวมบำรุงกระดูก",
+              "name": "ยาวิตามินบำรุงกระดูก",
               "dosage": "1 เม็ด",
               "image": "images/meds/calcium.jpg"
             }
@@ -96,11 +105,91 @@
           "before_meal": [],
           "after_meal": [
             {
-              "name": "ยาบำรุงสายตา",
+              "name": "วิตามินบำรุงสายตา",
               "dosage": "1 แคปซูล",
               "image": "images/meds/eye.jpg"
             }
           ]
+        }
+      }
+    },
+    "poy": {
+      "display_name": "น้องปอย",
+      "voice_greeting": "สวัสดีค่ะน้องปอย",
+      "schedules": {
+        "morning": {
+          "label": "มื้อเช้า",
+          "start_time": "06:30",
+          "end_time": "09:30",
+          "before_meal": [],
+          "after_meal": []
+        },
+        "noon": {
+          "label": "มื้อกลางวัน",
+          "start_time": "11:30",
+          "end_time": "13:30",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาลดไข้",
+              "dosage": "1 เม็ด",
+              "color_tag": "ซองสีชมพู"
+            }
+          ]
+        },
+        "evening": {
+          "label": "มื้อเย็น",
+          "start_time": "17:30",
+          "end_time": "20:00",
+          "before_meal": [],
+          "after_meal": []
+        },
+        "bedtime": {
+          "label": "ก่อนนอน",
+          "start_time": "21:00",
+          "end_time": "22:30",
+          "before_meal": [],
+          "after_meal": []
+        }
+      }
+    },
+    "nine": {
+      "display_name": "น้องนาย",
+      "voice_greeting": "สวัสดีค่ะน้องนาย",
+      "schedules": {
+        "morning": {
+          "label": "มื้อเช้า",
+          "start_time": "06:00",
+          "end_time": "11:30",
+          "before_meal": [],
+          "after_meal": [
+            {
+              "name": "ยาแก้ปวด",
+              "dosage": "1 เม็ด",
+              "color_tag": "ซองสีเขียว"
+            }
+          ]
+        },
+        "noon": {
+          "label": "มื้อกลางวัน",
+          "start_time": "11:31",
+          "end_time": "14:30",
+          "before_meal": [],
+          "after_meal": []
+        },
+        "evening": {
+          "label": "มื้อเย็น",
+          "start_time": "17:30",
+          "end_time": "20:00",
+          "before_meal": [],
+          "after_meal": []
+        },
+        "bedtime": {
+          "label": "ก่อนนอน",
+          "start_time": "21:00",
+          "end_time": "22:30",
+          "before_meal": [],
+          "after_meal": []
         }
       }
     }

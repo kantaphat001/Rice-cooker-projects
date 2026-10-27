@@ -21,13 +21,13 @@ class TTSPrecompiler:
         self.repo = repository
 
     def precompile_all(self):
-        logger.info("[TTS Precompiler] Pre-compiling static phrases to offline cache...")
+        logger.info("[TTS Precompiler] Pre-compiling static phrases to permanent offline cache...")
         members = self.repo.get_all_members()
 
         def _safe_synth(text: str):
             try:
-                self.tts.synthesize(text)
-                time.sleep(0.4)
+                self.tts.synthesize(text, permanent=True)
+                time.sleep(0.3)
             except Exception as e:
                 logger.warning(f"[TTS Precompiler] Skip error: {e}")
 
@@ -37,7 +37,7 @@ class TTSPrecompiler:
 
         # 2. Precompile member phrases
         for member_id, member_info in members.items():
-            greeting = member_info.get("voice_greeting", "สวัสดีครับ")
+            greeting = member_info.get("voice_greeting", "สวัสดีค่ะ")
             display_name = member_info.get("display_name", member_id)
 
             # Common responses
@@ -53,6 +53,9 @@ class TTSPrecompiler:
                 after = slot_data.get("after_meal", [])
                 full_text = ThaiPhraseBuilder.build_full_meal_announcement(greeting, label, before, after)
                 _safe_synth(full_text)
+                if before or after:
+                    catchup_text = ThaiPhraseBuilder.build_catchup_reminder(greeting, label, before, after)
+                    _safe_synth(catchup_text)
 
         gc.collect()
         logger.info("[TTS Precompiler] Pre-compilation completed successfully!")

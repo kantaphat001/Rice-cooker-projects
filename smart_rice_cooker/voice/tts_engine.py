@@ -55,15 +55,21 @@ class TTSEngine:
 
     async def _generate_async(self, text: str, output_path: Path):
         communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
-        # 4.0s timeout to prevent thread stalling if network drops
+        # 15.0s timeout to allow long meal announcements
         await asyncio.wait_for(communicate.save(str(output_path)), timeout=15.0)
 
-    def synthesize(self, text: str) -> Optional[Path]:
+    def synthesize(self, text: str, permanent: bool = False) -> Optional[Path]:
         """
         Returns path to .mp3 file. Uses precompiled or RAM cache if available,
-        otherwise synthesizes online directly into RAM disk (/dev/shm).
+        otherwise synthesizes online directly into permanent cache or RAM disk (/dev/shm).
         """
-        output_path = self.get_audio_path_for_text(text)
+        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{text}".encode("utf-8")).hexdigest()
+        perm_path = self.cache_dir / f"{text_hash}.mp3"
+        if perm_path.is_file() and perm_path.stat().st_size > 0:
+            logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...' ({perm_path})")
+            return perm_path
+
+        output_path = perm_path if permanent else self.get_audio_path_for_text(text)
 
         if output_path.is_file() and output_path.stat().st_size > 0:
             logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...' ({output_path})")
@@ -76,22 +82,38 @@ class TTSEngine:
         # 1. Try Edge-TTS (Neural Voice - Highest Quality)
         if EDGE_TTS_AVAILABLE:
             try:
-                logger.info(f"[TTS] Generating speech with Edge-TTS into RAM for: '{text[:30]}...'")
+                logger.info(f"[TTS] Generating speech with Edge-TTS for: '{text[:30]}...' (Voice: {self.voice})")
                 asyncio.run(self._generate_async(text, output_path))
                 if output_path.is_file() and output_path.stat().st_size > 0:
                     return output_path
             except Exception as e:
                 logger.warning(f"[TTS] Edge-TTS synthesis failed ({e}), checking fallback...")
+                if output_path.is_file() and output_path.stat().st_size == 0:
+                    try:
+                        output_path.unlink()
+                    except Exception:
+                        pass
 
         # 2. Fallback to gTTS if available
         if GTTS_AVAILABLE:
             try:
-                logger.info(f"[TTS] Generating speech with gTTS fallback into RAM for: '{text[:30]}...'")
+                logger.info(f"[TTS] Generating speech with gTTS fallback for: '{text[:30]}...'")
                 tts_inst = gTTS(text=text, lang='th')
                 tts_inst.save(str(output_path))
                 if output_path.is_file() and output_path.stat().st_size > 0:
                     return output_path
             except Exception as e:
                 logger.error(f"[TTS] gTTS fallback synthesis failed: {e}")
+                if output_path.is_file() and output_path.stat().st_size == 0:
+                    try:
+                        output_path.unlink()
+                    except Exception:
+                        pass
+
+        if output_path.is_file() and output_path.stat().st_size == 0:
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
 
         return None

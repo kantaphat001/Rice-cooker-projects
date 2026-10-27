@@ -44,6 +44,12 @@ export function renderHeader() {
             <span class="hidden sm:inline">Wi-Fi</span>
           </button>
 
+          <!-- Safe Shutdown Button -->
+          <button id="btn-shutdown-pi" class="apple-button px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs sm:text-sm flex items-center gap-1 border border-rose-200/60" title="ปิดเครื่อง Raspberry Pi อย่างปลอดภัย (Safe Shutdown)">
+            <span>🔌</span>
+            <span class="hidden sm:inline">ปิดเครื่อง</span>
+          </button>
+
           <!-- Mobile QR Code Button -->
           <button id="btn-open-qr" class="apple-button px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="เปิด QR Code สแกนเข้ามือถือ">
             <span>📱</span>

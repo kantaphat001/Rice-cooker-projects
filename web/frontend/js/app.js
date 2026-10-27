@@ -33,6 +33,33 @@ function attachDynamicEventListeners() {
   const shortcutBtn = document.getElementById('btn-open-shortcut');
   if (shortcutBtn) shortcutBtn.onclick = openShortcutModal;
 
+  const shutdownBtn = document.getElementById('btn-shutdown-pi');
+  if (shutdownBtn) {
+    shutdownBtn.onclick = async () => {
+      const confirmed = window.confirm(
+        '🛑 ต้องการปิดเครื่อง Raspberry Pi หรือไม่?\n\n' +
+        '• ระบบจะบันทึกข้อมูลและตัดไฟอย่างปลอดภัย\n' +
+        '• ไฟแสดงสถานะบนตัวเครื่องจะดับลงใน 5-10 วินาที\n' +
+        '• หลังจากไฟดับสนิท สามารถถอดปลั๊กได้ปลอดภัย 100%'
+      );
+      if (!confirmed) return;
+
+      shutdownBtn.disabled = true;
+      shutdownBtn.innerHTML = `<span>⏳</span><span class="hidden sm:inline">กำลังปิด...</span>`;
+
+      try {
+        const res = await fetch('/api/pi/shutdown');
+        const data = await res.json();
+        alert(data.message || 'ส่งคำสั่งปิดเครื่องเรียบร้อยแล้ว ไฟจะดับลงใน 5-10 วินาที');
+      } catch (err) {
+        alert('ส่งคำสั่งไม่สำเร็จ: ' + err.message);
+      } finally {
+        shutdownBtn.disabled = false;
+        shutdownBtn.innerHTML = `<span>🔌</span><span class="hidden sm:inline">ปิดเครื่อง</span>`;
+      }
+    };
+  }
+
   // Member Bar Buttons
   const addMemberBtn = document.getElementById('btn-open-add-member');
   if (addMemberBtn) addMemberBtn.onclick = openAddMemberModal;
