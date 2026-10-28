@@ -111,8 +111,14 @@ class MedPortalHandler(BaseHTTPRequestHandler):
                 "pi_ip": target_pi
             }
             face_summary = get_face_summary()
+            adherence_data = {}
+            try:
+                from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
+                adherence_data = AdherenceTracker().get_all_records()
+            except Exception:
+                pass
             embedded_data = json.dumps(
-                {"config": cfg, "server_info": server_info, "face_summary": face_summary},
+                {"config": cfg, "server_info": server_info, "face_summary": face_summary, "adherence": adherence_data},
                 ensure_ascii=False
             )
 
@@ -151,6 +157,15 @@ class MedPortalHandler(BaseHTTPRequestHandler):
         if path == '/api/wifi':
             status = get_wifi_status()
             self._send_json(status)
+            return
+
+        if path == '/api/adherence':
+            try:
+                from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
+                data = AdherenceTracker().get_all_records()
+                self._send_json({"success": True, "adherence": data})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, code=500)
             return
 
         if path == '/api/pi/shutdown':
@@ -240,6 +255,36 @@ class MedPortalHandler(BaseHTTPRequestHandler):
         if path == '/api/wifi/scan':
             networks = scan_wifi()
             self._send_json({"networks": networks})
+            return
+
+        if path == '/api/adherence/ack':
+            member_id = req_data.get('member_id', '').strip()
+            slot_key = req_data.get('slot_key', '').strip()
+            if member_id and slot_key:
+                try:
+                    from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
+                    tracker = AdherenceTracker()
+                    tracker.record_acknowledgement(member_id, slot_key)
+                    self._send_json({"success": True, "message": f"บันทึกว่า {member_id} รับประทานยา {slot_key} เรียบร้อยแล้ว", "adherence": tracker.get_all_records()})
+                except Exception as e:
+                    self._send_json({"success": False, "error": str(e)}, code=500)
+            else:
+                self._send_json({"success": False, "error": "ระบุ member_id และ slot_key ไม่ครบถ้วน"}, code=400)
+            return
+
+        if path == '/api/adherence/reset':
+            member_id = req_data.get('member_id', '').strip()
+            slot_key = req_data.get('slot_key', '').strip()
+            if member_id and slot_key:
+                try:
+                    from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
+                    tracker = AdherenceTracker()
+                    tracker.reset_slot(member_id, slot_key)
+                    self._send_json({"success": True, "message": f"รีเซ็ตสถานะยา {slot_key} ของ {member_id} เรียบร้อยแล้ว", "adherence": tracker.get_all_records()})
+                except Exception as e:
+                    self._send_json({"success": False, "error": str(e)}, code=500)
+            else:
+                self._send_json({"success": False, "error": "ระบุ member_id และ slot_key ไม่ครบถ้วน"}, code=400)
             return
 
         if path == '/api/wifi/add':

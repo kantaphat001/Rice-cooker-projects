@@ -295,12 +295,41 @@ class CompanionService:
             self._speak_friendly_with_antispam(member_id, msg)
             return
 
-        # Always announce full medication reminder for active meal window (Continuous Reminder mode)
+        # 1. Medical Safety Guard: Double-Dosing Hazard Prevention (Elderly UX Hardening)
+        # If the member has already taken/acknowledged medication for this slot, reassure them
+        # so they do NOT take a second dose by mistake.
+        if self.tracker.is_acknowledged(member_id, slot_key):
+            logger.info(f"[Service] {member_id} already acknowledged medication for {slot_key}. Preventing double-dose.")
+            msg = ThaiPhraseBuilder.build_already_taken_message(display_name)
+            if self.gui:
+                self.gui.show_already_taken(display_name)
+            self._speak_friendly_with_antispam(member_id, msg)
+            return
+
+        # 2. Check if reminded recently but not yet acknowledged (Manual Button Mode)
+        cooldown_min = getattr(settings, "COOLDOWN_PERSON_MINUTES", 20)
+        auto_ack = getattr(settings, "AUTO_ACKNOWLEDGE_ON_REMIND", False)
+        if not auto_ack and self.tracker.is_in_cooldown(member_id, slot_key, cooldown_min):
+            logger.info(f"[Service] {member_id} in cooldown window ({cooldown_min}m) for {slot_key}. Playing gentle follow-up.")
+            msg = ThaiPhraseBuilder.build_unacknowledged_followup(display_name)
+            if self.gui:
+                self.gui.update_medication_display(display_name, slot_label, all_meds)
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
+            self._speak_and_finish(msg, has_meds=True)
+            return
+
+        # 3. Active meal window announcement (Full Medication Reminder)
         msg = ThaiPhraseBuilder.build_full_meal_announcement(greeting, slot_label, before_meds, after_meds)
         if self.gui:
             self.gui.update_medication_display(display_name, slot_label, all_meds)
         self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
         self.tracker.record_reminder(member_id, slot_key)
+
+        # Hands-free elderly mode: automatically mark acknowledged after announcement
+        if auto_ack:
+            logger.info(f"[Service] Auto-acknowledged {slot_key} for {member_id} (Zero-Touch Elder Mode).")
+            self.tracker.record_acknowledgement(member_id, slot_key)
+
         self._speak_and_finish(msg, has_meds=True)
 
     def _handle_off_schedule_member(self, member_id: str, display_name: str, greeting: str):
@@ -343,8 +372,7 @@ class CompanionService:
 
             if self.gui:
                 self.gui.update_medication_display(display_name, f"มื้อถัดไป: {next_label}", all_meds)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": bool(all_meds)})
-            self._speak_and_finish(msg, has_meds=bool(all_meds))
+            self._speak_friendly_with_antispam(member_id, msg)
             return
 
         msg = ThaiPhraseBuilder.build_no_meds_message(greeting)

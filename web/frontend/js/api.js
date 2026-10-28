@@ -210,3 +210,56 @@ export async function saveWifiNetwork(ssid, password) {
     return { success: false, message: err.message };
   }
 }
+
+export async function fetchAdherence() {
+  try {
+    const res = await fetch('/api/adherence');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.success && data.adherence) {
+      store.setState({ adherence: data.adherence });
+      return data.adherence;
+    }
+  } catch (err) {
+    console.error('fetchAdherence error:', err);
+  }
+  return null;
+}
+
+export async function acknowledgeSlot(memberId, slotKey) {
+  try {
+    const res = await fetch('/api/adherence/ack', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId, slot_key: slotKey })
+    });
+    const data = await res.json();
+    if (data.success) {
+      store.setState({ adherence: data.adherence });
+      showToast(data.message || 'บันทึกสถานะเรียบร้อยแล้ว', 'success');
+      return data.adherence;
+    }
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาดในการบันทึกสถานะ', 'error');
+  }
+  return null;
+}
+
+export async function resetSlotAdherence(memberId, slotKey) {
+  try {
+    const res = await fetch('/api/adherence/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId, slot_key: slotKey })
+    });
+    const data = await res.json();
+    if (data.success) {
+      store.setState({ adherence: data.adherence });
+      showToast(data.message || 'รีเซ็ตสถานะเรียบร้อยแล้ว', 'info');
+      return data.adherence;
+    }
+  } catch (err) {
+    showToast('เกิดข้อผิดพลาดในการรีเซ็ตสถานะ', 'error');
+  }
+  return null;
+}

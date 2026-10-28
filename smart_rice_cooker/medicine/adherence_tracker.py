@@ -107,3 +107,20 @@ class AdherenceTracker:
 
         elapsed_sec = time.time() - last_time
         return elapsed_sec < (cooldown_minutes * 60)
+
+    def get_all_records(self) -> Dict[str, Any]:
+        """Returns current day's adherence records for all members."""
+        return self._state
+
+    def reset_slot(self, member_id: str, slot_key: str):
+        """Resets adherence state for a specific slot."""
+        if member_id in self._state.get("records", {}):
+            if slot_key in self._state["records"][member_id]:
+                self._state["records"][member_id][slot_key] = {
+                    "reminded_count": 0,
+                    "last_reminded_at": None,
+                    "acknowledged": False,
+                    "acknowledged_at": None
+                }
+                self._save_state(to_disk=True)
+                logger.info(f"[Tracker] Reset adherence state for {member_id} ({slot_key}).")

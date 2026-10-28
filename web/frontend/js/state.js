@@ -16,6 +16,7 @@ class StateStore {
       },
       faceSummary: {},
       currentFaceList: [],
+      adherence: { date: '', records: {} },
       wifiStatus: {
         current: '',
         saved: [],
@@ -78,7 +79,8 @@ class StateStore {
       configData,
       currentMemberId,
       serverInfo: embedded.server_info || this.state.serverInfo,
-      faceSummary: embedded.face_summary || this.state.faceSummary
+      faceSummary: embedded.face_summary || this.state.faceSummary,
+      adherence: embedded.adherence || { date: '', records: {} }
     });
   }
 }

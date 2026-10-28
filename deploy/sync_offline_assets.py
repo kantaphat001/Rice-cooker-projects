@@ -35,12 +35,17 @@ def sync():
     files_to_sync = [
         ("smart_rice_cooker/config/settings.py", "/home/pi/smart_rice_cooker/config/settings.py"),
         ("smart_rice_cooker/service.py", "/home/pi/smart_rice_cooker/service.py"),
+        ("smart_rice_cooker/medicine/adherence_tracker.py", "/home/pi/smart_rice_cooker/medicine/adherence_tracker.py"),
         ("smart_rice_cooker/hardware/camera_manager.py", "/home/pi/smart_rice_cooker/hardware/camera_manager.py"),
         ("smart_rice_cooker/hardware/ultrasonic_sensor.py", "/home/pi/smart_rice_cooker/hardware/ultrasonic_sensor.py"),
         ("smart_rice_cooker/voice/tts_engine.py", "/home/pi/smart_rice_cooker/voice/tts_engine.py"),
         ("smart_rice_cooker/voice/phrase_builder.py", "/home/pi/smart_rice_cooker/voice/phrase_builder.py"),
         ("smart_rice_cooker/voice/audio_player.py", "/home/pi/smart_rice_cooker/voice/audio_player.py"),
         ("smart_rice_cooker/voice/tts_precompiler.py", "/home/pi/smart_rice_cooker/voice/tts_precompiler.py"),
+        ("web/backend/server.py", "/home/pi/web/backend/server.py"),
+        ("web/frontend/js/state.js", "/home/pi/web/frontend/js/state.js"),
+        ("web/frontend/js/api.js", "/home/pi/web/frontend/js/api.js"),
+        ("web/frontend/js/components/schedule_board.js", "/home/pi/web/frontend/js/components/schedule_board.js"),
     ]
     for rel_local, remote_p in files_to_sync:
         local_p = ROOT_DIR / rel_local
@@ -59,19 +64,20 @@ def sync():
 
     sftp.close()
     
-    # 4. Restart smart-cooker service
-    print("[*] Restarting smart-cooker.service on Pi...")
-    stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S systemctl restart smart-cooker.service")
+    # 4. Restart services
+    print("[*] Restarting smart-cooker.service & smart-cooker-web.service on Pi...")
+    stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S systemctl restart smart-cooker.service smart-cooker-web.service")
     stdout.channel.recv_exit_status()
     time.sleep(2)
     
     # 5. Check status
-    stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service")
-    status = stdout.read().decode().strip()
-    print(f"[+] smart-cooker.service status: {status}")
+    stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service smart-cooker-web.service")
+    statuses = stdout.read().decode().strip().split()
+    print(f"[+] smart-cooker.service: {statuses[0] if len(statuses) > 0 else 'unknown'}")
+    print(f"[+] smart-cooker-web.service: {statuses[1] if len(statuses) > 1 else 'unknown'}")
     
     ssh.close()
-    print("[SUCCESS] All offline assets successfully synchronized!")
+    print("[SUCCESS] All offline assets & web portal successfully synchronized!")
 
 if __name__ == "__main__":
     sync()

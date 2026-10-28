@@ -1,11 +1,11 @@
 /**
  * Smart Rice Cooker - Apple Health Medication Schedule Board (2026 Edition)
- * Borderless, elevated meal sections with soft ambient grouping and interactive meal timing controls.
+ * Borderless, elevated meal sections with soft ambient grouping, adherence tracking, and timing controls.
  */
 
 import { store } from '../state.js';
 import { getMedTheme } from '../theme.js';
-import { saveConfig } from '../api.js';
+import { saveConfig, acknowledgeSlot, resetSlotAdherence } from '../api.js';
 import { showToast } from './toast.js';
 
 export function renderScheduleBoard() {
@@ -29,22 +29,40 @@ export function renderScheduleBoard() {
   const slotKeys = ['morning', 'noon', 'evening', 'bedtime'];
   const slotIcons = { morning: '🌅', noon: '☀️', evening: '🌙', bedtime: '🛌' };
 
+  const adherenceState = store.getState().adherence || {};
+  const memberRecords = adherenceState.records?.[currentMemberId] || {};
+
   container.innerHTML = slotKeys.map((key) => {
     const slot = schedules[key] || { label: key, start_time: '', end_time: '', before_meal: [], after_meal: [] };
     const icon = slotIcons[key] || '⏰';
     const beforeMeds = slot.before_meal || [];
     const afterMeds = slot.after_meal || [];
+    const totalMeds = beforeMeds.length + afterMeds.length;
+
+    const slotRecord = memberRecords[key] || {};
+    const isAck = Boolean(slotRecord.acknowledged);
 
     return `
       <div id="meal-section-${key}" class="glass-card rounded-3xl p-5 sm:p-6 space-y-4 scroll-mt-20">
-        <!-- Meal Header with Interactive Time Window Controls -->
+        <!-- Meal Header with Interactive Time Window Controls & Adherence Status -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div class="flex items-start sm:items-center gap-3">
             <span class="text-2xl sm:text-3xl">${icon}</span>
             <div>
-              <h3 class="font-bold text-slate-800 text-base sm:text-lg">
-                ${slot.label}
-              </h3>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-slate-800 text-base sm:text-lg">
+                  ${slot.label}
+                </h3>
+                ${isAck ? `
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                    <span>✅</span> ทานยาแล้ว
+                  </span>
+                ` : (totalMeds > 0 ? `
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                    <span>⏳</span> รอทานยา
+                  </span>
+                ` : '')}
+              </div>
               <!-- Interactive Meal Time Window Editor (Instant Sync to Pi) -->
               <div class="flex flex-wrap items-center gap-1.5 mt-1">
                 <span class="text-xs text-slate-500 font-medium">⏰ ช่วงเวลา:</span>
@@ -58,11 +76,26 @@ export function renderScheduleBoard() {
             </div>
           </div>
 
-          <!-- Add Med Action Button -->
-          <button data-add-meal="${key}" class="btn-add-med-slot apple-button px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm flex items-center gap-1.5 shadow-xs self-end sm:self-auto">
-            <span>➕</span>
-            <span>เพิ่มยา</span>
-          </button>
+          <!-- Quick Action Buttons: Caregiver Adherence Check & Add Med -->
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            ${isAck ? `
+              <button data-reset-slot="${key}" class="btn-reset-adherence apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium flex items-center gap-1 border border-slate-200" title="รีเซ็ตสถานะเป็นยังไม่ทานยา">
+                <span>🔄</span>
+                <span class="hidden sm:inline">รีเซ็ต</span>
+              </button>
+            ` : (totalMeds > 0 ? `
+              <button data-ack-slot="${key}" class="btn-ack-adherence apple-button px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1 transition active:scale-95 shadow-2xs" title="แตะเพื่อบันทึกว่ารับประทานยาแล้ว">
+                <span>✓</span>
+                <span>บันทึกว่าทานแล้ว</span>
+              </button>
+            ` : '')}
+
+            <!-- Add Med Action Button -->
+            <button data-add-meal="${key}" class="btn-add-med-slot apple-button px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm flex items-center gap-1.5 shadow-xs">
+              <span>➕</span>
+              <span>เพิ่มยา</span>
+            </button>
+          </div>
         </div>
 
         <!-- 2 Column Meal Timing Columns (Borderless Ambient Surfaces) -->
@@ -137,6 +170,32 @@ export function renderScheduleBoard() {
       } else {
         showToast('ไม่สามารถบันทึกเวลาได้ กรุณาลองใหม่อีกครั้ง', 'error');
       }
+    });
+  });
+
+  // Attach Adherence Acknowledge Handlers
+  container.querySelectorAll('.btn-ack-adherence').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const slotKey = btn.getAttribute('data-ack-slot');
+      const currentMemberId = store.getState().currentMemberId;
+      if (!currentMemberId || !slotKey) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ บันทึก...</span>';
+      await acknowledgeSlot(currentMemberId, slotKey);
+      renderScheduleBoard();
+    });
+  });
+
+  // Attach Adherence Reset Handlers
+  container.querySelectorAll('.btn-reset-adherence').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const slotKey = btn.getAttribute('data-reset-slot');
+      const currentMemberId = store.getState().currentMemberId;
+      if (!currentMemberId || !slotKey) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳...</span>';
+      await resetSlotAdherence(currentMemberId, slotKey);
+      renderScheduleBoard();
     });
   });
 
