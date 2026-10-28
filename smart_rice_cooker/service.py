@@ -136,6 +136,11 @@ class CompanionService:
                 continue
 
             if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
+                # Require at least 2.5s of steady Standby before re-triggering so Red LED is clearly visible and stable
+                if self.fsm.current_state == SystemState.STANDBY and (time.time() - self._last_activity_time) < 2.5:
+                    time.sleep(0.4)
+                    continue
+
                 poll_delay = 0.8 if self.fsm.current_state == SystemState.ECO_SLEEP else 0.4
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
@@ -389,8 +394,7 @@ class CompanionService:
 
     def _handle_unknown_visitor(self):
         msg = ThaiPhraseBuilder.build_unknown_visitor_message()
-        self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": False})
-        self._speak_and_finish(msg, has_meds=False)
+        self._speak_friendly_with_antispam("unknown", msg)
 
     def _speak_and_finish(self, text: str, has_meds: bool):
         self._is_announcing = True

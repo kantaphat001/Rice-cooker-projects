@@ -70,8 +70,17 @@ def get_face_summary() -> Dict[str, Dict[str, Any]]:
     return summary
 
 
+def _exec_remote(ssh, cmd: str) -> tuple:
+    """Executes a command on Pi with sudo password support and waits for clean exit status."""
+    full_cmd = f"echo {PI_PASS} | sudo -S {cmd}" if cmd.startswith("sudo ") else cmd
+    stdin, stdout, stderr = ssh.exec_command(full_cmd)
+    exit_status = stdout.channel.recv_exit_status()
+    out = stdout.read().decode('utf-8', errors='replace').strip()
+    return exit_status, out
+
+
 def delete_member_face(member_id: str, filename: str) -> bool:
-    """Delete face photo locally and remotely on Raspberry Pi, then trigger AI rebuild."""
+    """Delete face photo locally and remotely on Raspberry Pi, then trigger AI rebuild and service refresh."""
     matched_dir = _find_member_dir(member_id)
     if matched_dir and matched_dir.exists():
         local_file = matched_dir / filename
@@ -90,14 +99,21 @@ def delete_member_face(member_id: str, filename: str) -> bool:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
-            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id}/{filename}")
-            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id.lower()}/{filename}")
-            ssh.exec_command(f"rm -f /home/{PI_USER}/dataset/{member_id.capitalize()}/{filename}")
-            ssh.exec_command("sudo systemctl stop smart-cooker.service")
-            ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
-            ssh.exec_command("sudo systemctl start smart-cooker.service")
+
+            # 1. Delete file on Pi
+            _exec_remote(ssh, f"rm -f /home/{PI_USER}/dataset/{member_id}/{filename}")
+            _exec_remote(ssh, f"rm -f /home/{PI_USER}/dataset/{member_id.lower()}/{filename}")
+            _exec_remote(ssh, f"rm -f /home/{PI_USER}/dataset/{member_id.capitalize()}/{filename}")
+
+            # 2. Rebuild AI model
+            print(f"[*] Rebuilding AI face model on Pi after deleting {filename}...")
+            st, out = _exec_remote(ssh, "python3 -m smart_rice_cooker.main --rebuild-faces")
+            print(f"[+] Rebuild completed (exit={st}):\n{out}")
+
+            # 3. Cleanly restart smart-cooker service so Standby Red LED turns back ON
+            _exec_remote(ssh, "sudo systemctl restart smart-cooker.service")
             ssh.close()
-            print(f"[+] Deleted {member_id}/{filename} on Pi and rebuilt AI model")
+            print(f"[+] Successfully refreshed smart-cooker.service (Red Standby LED ON)")
         except Exception as e:
             print(f"[!] Error deleting remote face on Pi: {e}")
 
@@ -135,17 +151,15 @@ def delete_member_dataset(member_id: str) -> bool:
             ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
 
             cmd_rm = f"rm -rf /home/{PI_USER}/dataset/{member_id} /home/{PI_USER}/dataset/{member_id.lower()} /home/{PI_USER}/dataset/{member_id.capitalize()}"
-            ssh.exec_command(cmd_rm)
+            _exec_remote(ssh, cmd_rm)
 
-            ssh.exec_command("sudo systemctl stop smart-cooker.service")
-            time.sleep(0.5)
-            stdin, stdout, stderr = ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
-            exit_status = stdout.channel.recv_exit_status()
-            out = stdout.read().decode('utf-8', errors='replace')
-            print(f"[+] Purged member '{member_id}' dataset on Pi and rebuilt AI faces (exit={exit_status}):\n{out}")
+            print(f"[*] Rebuilding AI face model on Pi after purging {member_id}...")
+            st, out = _exec_remote(ssh, "python3 -m smart_rice_cooker.main --rebuild-faces")
+            print(f"[+] Purged member '{member_id}' dataset on Pi and rebuilt AI faces (exit={st}):\n{out}")
 
-            ssh.exec_command("sudo systemctl start smart-cooker.service")
+            _exec_remote(ssh, "sudo systemctl restart smart-cooker.service")
             ssh.close()
+            print(f"[+] Successfully refreshed smart-cooker.service (Red Standby LED ON)")
         except Exception as e:
             print(f"[!] Error purging remote member dataset on Pi: {e}")
 
@@ -177,15 +191,12 @@ def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path) -> None:
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
 
-        ssh.exec_command("sudo systemctl stop smart-cooker.service")
-        time.sleep(0.5)
-
         sftp = ssh.open_sftp()
         remote_member_dir = f"/home/{PI_USER}/dataset/{member_id}"
         try:
             sftp.stat(remote_member_dir)
         except IOError:
-            ssh.exec_command(f"mkdir -p {remote_member_dir}")
+            _exec_remote(ssh, f"mkdir -p {remote_member_dir}")
             time.sleep(0.3)
 
         remote_file = f"{remote_member_dir}/{local_path.name}"
@@ -193,12 +204,12 @@ def _sync_photo_and_rebuild_pi(member_id: str, local_path: Path) -> None:
         sftp.close()
 
         print(f"[*] Rebuilding AI face model on Pi for '{member_id}'...")
-        stdin, stdout, stderr = ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
-        out = stdout.read().decode('utf-8', errors='replace')
-        print(f"[+] Rebuild completed:\n{out}")
+        st, out = _exec_remote(ssh, "python3 -m smart_rice_cooker.main --rebuild-faces")
+        print(f"[+] Rebuild completed (exit={st}):\n{out}")
 
-        ssh.exec_command("sudo systemctl start smart-cooker.service")
+        _exec_remote(ssh, "sudo systemctl restart smart-cooker.service")
         ssh.close()
+        print(f"[+] Successfully refreshed smart-cooker.service (Red Standby LED ON)")
     except Exception as e:
         print(f"[!] Sync photo to Pi error: {e}")
 
@@ -213,8 +224,8 @@ def capture_face_from_pi(member_id: str) -> Optional[str]:
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=8)
         
-        # Stop background service to free camera hardware
-        ssh.exec_command("sudo systemctl stop smart-cooker.service")
+        # Stop background service with proper sudo password to free camera hardware
+        _exec_remote(ssh, "sudo systemctl stop smart-cooker.service")
         time.sleep(1.0)
 
         py_script = f"""
@@ -268,14 +279,14 @@ else:
             sftp.close()
 
             # Rebuild AI model
-            _, rb_out, _ = ssh.exec_command("python3 -m smart_rice_cooker.main --rebuild-faces")
-            rb_out.channel.recv_exit_status()
+            print(f"[*] Rebuilding AI face model on Pi after camera capture for '{member_id}'...")
+            _exec_remote(ssh, "python3 -m smart_rice_cooker.main --rebuild-faces")
 
-            ssh.exec_command("sudo systemctl start smart-cooker.service")
+            _exec_remote(ssh, "sudo systemctl restart smart-cooker.service")
             ssh.close()
             return captured_name
 
-        ssh.exec_command("sudo systemctl start smart-cooker.service")
+        _exec_remote(ssh, "sudo systemctl restart smart-cooker.service")
         ssh.close()
     except Exception as e:
         print(f"[!] Pi camera capture error: {e}")
