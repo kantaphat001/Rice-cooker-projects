@@ -100,8 +100,8 @@ class UltrasonicSensor:
         # 2. HC-SR04 / Standard Pulse Mode via gpiozero DistanceSensor with strict timeout
         if self.echo_pin is not None and self.trig_pin is not None:
             try:
-                # max_distance=2.0 caps measurement timeout at ~12ms, strictly preventing echo hangs
-                self._sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trig_pin, max_distance=2.0)
+                # max_distance=1.5 and queue_len=2 prevents multi-sample blocking lag on Bookworm
+                self._sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trig_pin, max_distance=1.5, queue_len=2)
                 logger.info(f"[Ultrasonic] HC-SR04 Active (Trig: GPIO {self.trig_pin}, Echo: GPIO {self.echo_pin})")
                 return
             except Exception as e:

@@ -98,14 +98,14 @@ class CompanionService:
         # Start Camera Warm-up (1 FPS standby)
         self.camera.start()
 
-        if self.camera_only:
-            logger.info("[Service] 📸 Camera-Only Mode ACTIVE: Continuous face trigger enabled.")
-            threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
-        else:
-            # Start Ultrasonic distance loop
+        # Dual-Radar Presence Detection Architecture:
+        # 1. Ultrasonic Distance Sensor (Fast instant trigger if plugged in)
+        if not self.camera_only:
             self.ultrasonic.start_monitoring()
-            # Hardware watchdog: If ultrasonic faults or disconnected outside, seamlessly fail over to camera vision
-            threading.Thread(target=self._sensor_failover_loop, daemon=True, name="SensorFailoverWatchdog").start()
+
+        # 2. Camera Vision Watchdog (ALWAYS active in background, 1 FPS in Standby & Eco-Sleep)
+        # Guarantees the system will NEVER get trapped asleep if ultrasonic is deflected, disconnected, or no-echo
+        threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
 
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
@@ -116,18 +116,6 @@ class CompanionService:
             self.gui.reset_to_standby()
 
         logger.info("[Service] ✅ All subsystems operational and listening.")
-
-    def _sensor_failover_loop(self):
-        """Monitors ultrasonic sensor health; if hardware fault or disconnected outside, seamlessly activates camera presence."""
-        time.sleep(3.0)
-        camera_fallback_started = False
-        while self._running:
-            if getattr(self.ultrasonic, "is_hardware_fault", False) or self.ultrasonic._is_mock:
-                if not camera_fallback_started:
-                    logger.warning("[Service] ⚠️ Ultrasonic sensor disconnected or no echo received! Seamlessly activating Camera Vision Fallback.")
-                    threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
-                    camera_fallback_started = True
-            time.sleep(2.0)
 
     def _activity_watchdog_loop(self):
         """Monitors idle time and manages transitions to Eco-Sleep mode."""
@@ -140,15 +128,15 @@ class CompanionService:
                     self.fsm.transition_to(SystemState.ECO_SLEEP)
 
     def _camera_presence_loop(self):
-        """Used when Ultrasonic sensor is not connected or failing; wakes up when face is seen."""
-        logger.info("[Service] Camera presence loop active (polling for faces)...")
+        """Continuous presence watchdog via camera vision (Dual-Radar redundancy)."""
+        logger.info("[Service] Camera presence watchdog active (Dual-Radar mode)...")
         while self._running:
             if not self.camera._running:
                 time.sleep(0.5)
                 continue
 
             if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
-                poll_delay = 1.0 if self.fsm.current_state == SystemState.ECO_SLEEP else 0.4
+                poll_delay = 0.8 if self.fsm.current_state == SystemState.ECO_SLEEP else 0.4
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
                     faces = self.detector.detect(frame)
@@ -164,19 +152,16 @@ class CompanionService:
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.ECO_SLEEP:
             self.leds.all_off()
-            if self.camera_only or self.ultrasonic._is_mock or getattr(self.ultrasonic, "is_hardware_fault", False):
-                # Vision-based wakeup: Keep camera at standby 1 FPS to detect incoming person
-                self.camera.set_active_mode(False)
-            else:
-                self.camera.suspend()
-                self.ultrasonic.set_eco_mode(True)
+            # Eco-Sleep: Keep camera in 1 FPS standby (cold sensor, zero heat, AE locked)
+            # NEVER close V4L2 device so vision watchdog can instantly wake system when person arrives!
+            self.camera.set_active_mode(False)
+            self.ultrasonic.set_eco_mode(True)
             if self.gui:
                 self.gui.update_state_display("🌙 โหมดพักอุปกรณ์ Eco-Sleep (พร้อมตื่นเมื่อมีคนเดินมา)", "#6C757D")
             gc.collect()
 
         elif new_state == SystemState.STANDBY:
             if old_state == SystemState.ECO_SLEEP:
-                self.camera.resume()
                 self.ultrasonic.set_eco_mode(False)
             self.leds.set_standby()
             self.camera.set_active_mode(False)
@@ -186,7 +171,6 @@ class CompanionService:
 
         elif new_state == SystemState.DETECTING:
             if old_state == SystemState.ECO_SLEEP:
-                self.camera.resume()
                 self.ultrasonic.set_eco_mode(False)
             self.leds.set_detecting()
             self.camera.set_active_mode(True)

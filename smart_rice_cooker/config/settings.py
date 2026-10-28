@@ -62,7 +62,7 @@ AUTO_SLEEP_TIMEOUT_SEC = 60.0          # 60s idle before entering Eco-Sleep (pre
 # AI Vision Models (OpenCV Model Zoo 2026 Standards) - Loaded ONCE in RAM
 YUNET_MODEL_FILE = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 SFACE_MODEL_FILE = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
-FACE_DETECTION_CONFIDENCE = 0.75
+FACE_DETECTION_CONFIDENCE = 0.60
 FACE_RECOGNITION_THRESHOLD = 0.70  # Cosine similarity for family matching (0.70 standard)
 
 # Audio & Thai TTS (Elderly-Friendly Tuning)
