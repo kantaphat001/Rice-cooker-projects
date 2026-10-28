@@ -100,10 +100,12 @@ class CompanionService:
 
         if self.camera_only:
             logger.info("[Service] 📸 Camera-Only Mode ACTIVE: Continuous face trigger enabled.")
-            threading.Thread(target=self._camera_presence_loop, daemon=True).start()
+            threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
         else:
             # Start Ultrasonic distance loop
             self.ultrasonic.start_monitoring()
+            # Hardware watchdog: If ultrasonic faults or disconnected outside, seamlessly fail over to camera vision
+            threading.Thread(target=self._sensor_failover_loop, daemon=True, name="SensorFailoverWatchdog").start()
 
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
@@ -114,6 +116,18 @@ class CompanionService:
             self.gui.reset_to_standby()
 
         logger.info("[Service] ✅ All subsystems operational and listening.")
+
+    def _sensor_failover_loop(self):
+        """Monitors ultrasonic sensor health; if hardware fault or disconnected outside, seamlessly activates camera presence."""
+        time.sleep(3.0)
+        camera_fallback_started = False
+        while self._running:
+            if getattr(self.ultrasonic, "is_hardware_fault", False) or self.ultrasonic._is_mock:
+                if not camera_fallback_started:
+                    logger.warning("[Service] ⚠️ Ultrasonic sensor disconnected or no echo received! Seamlessly activating Camera Vision Fallback.")
+                    threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
+                    camera_fallback_started = True
+            time.sleep(2.0)
 
     def _activity_watchdog_loop(self):
         """Monitors idle time and manages transitions to Eco-Sleep mode."""
@@ -126,28 +140,36 @@ class CompanionService:
                     self.fsm.transition_to(SystemState.ECO_SLEEP)
 
     def _camera_presence_loop(self):
-        """Used when Ultrasonic sensor is not connected; wakes up when face is seen."""
+        """Used when Ultrasonic sensor is not connected or failing; wakes up when face is seen."""
         logger.info("[Service] Camera presence loop active (polling for faces)...")
-        while self._running and self.camera._running:
-            if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
-                if self.fsm.current_state == SystemState.ECO_SLEEP:
-                    time.sleep(1.0)
-                    continue
+        while self._running:
+            if not self.camera._running:
+                time.sleep(0.5)
+                continue
 
+            if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
+                poll_delay = 1.0 if self.fsm.current_state == SystemState.ECO_SLEEP else 0.4
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
                     faces = self.detector.detect(frame)
                     if faces is not None and len(faces) > 0:
                         logger.info("[Service] 👁️ Face visually detected in camera! Triggering pipeline.")
                         self._handle_person_detected(distance_cm=50.0)
-                        time.sleep(1.5)
-            time.sleep(0.4)
+                        time.sleep(2.0)
+                        continue
+                time.sleep(poll_delay)
+            else:
+                time.sleep(0.4)
 
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.ECO_SLEEP:
             self.leds.all_off()
-            self.camera.suspend()
-            self.ultrasonic.set_eco_mode(True)
+            if self.camera_only or self.ultrasonic._is_mock or getattr(self.ultrasonic, "is_hardware_fault", False):
+                # Vision-based wakeup: Keep camera at standby 1 FPS to detect incoming person
+                self.camera.set_active_mode(False)
+            else:
+                self.camera.suspend()
+                self.ultrasonic.set_eco_mode(True)
             if self.gui:
                 self.gui.update_state_display("🌙 โหมดพักอุปกรณ์ Eco-Sleep (พร้อมตื่นเมื่อมีคนเดินมา)", "#6C757D")
             gc.collect()
@@ -315,17 +337,9 @@ class CompanionService:
             after_meds = next_data.get("after_meal", [])
             all_meds = before_meds + after_meds
 
-            if all_meds:
-                g = ThaiPhraseBuilder._clean_greeting(greeting)
-                parts = [f"{g} ขณะนี้อยู่นอกเวลามื้อยา สำหรับมื้อถัดไปคือ{next_label} เวลา {next_time} น. นะคะ"]
-                if before_meds:
-                    parts.append(f"โดยมียาก่อนอาหาร คือ {' และ '.join([ThaiPhraseBuilder._format_med_item(m) for m in before_meds])} ค่ะ")
-                if after_meds:
-                    parts.append(f"และยาหลังอาหาร คือ {' และ '.join([ThaiPhraseBuilder._format_med_item(m) for m in after_meds])} ด้วยนะคะ")
-                parts.append("ขอให้มีความสุขและสุขภาพแข็งแรงนะคะ")
-                msg = " ".join(parts)
-            else:
-                msg = ThaiPhraseBuilder.build_next_meal_friendly_status(greeting, next_label, next_time)
+            msg = ThaiPhraseBuilder.build_off_schedule_upcoming_reminder(
+                greeting, next_label, next_time, before_meds, after_meds
+            )
 
             if self.gui:
                 self.gui.update_medication_display(display_name, f"มื้อถัดไป: {next_label}", all_meds)
@@ -369,6 +383,11 @@ class CompanionService:
     def _speak_and_finish(self, text: str, has_meds: bool):
         self._is_announcing = True
         audio_path = self.tts.synthesize(text)
+        if not audio_path:
+            # Standalone Offline Fallback: If dynamic synthesis unavailable, use cached welcome or safe message
+            logger.warning(f"[Service] Audio file not found offline for: '{text[:30]}...'. Falling back to precompiled message.")
+            fallback_text = ThaiPhraseBuilder.build_unknown_visitor_message()
+            audio_path = self.tts.synthesize(fallback_text)
 
         def _on_done():
             self._is_announcing = False

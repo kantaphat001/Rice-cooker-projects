@@ -27,7 +27,7 @@ class TTSPrecompiler:
         def _safe_synth(text: str):
             try:
                 self.tts.synthesize(text, permanent=True)
-                time.sleep(0.3)
+                time.sleep(0.8)
             except Exception as e:
                 logger.warning(f"[TTS Precompiler] Skip error: {e}")
 
@@ -56,6 +56,13 @@ class TTSPrecompiler:
                 if before or after:
                     catchup_text = ThaiPhraseBuilder.build_catchup_reminder(greeting, label, before, after)
                     _safe_synth(catchup_text)
+
+                # 3. Off-schedule upcoming reminder (Crucial for outside demos and judge evaluations)
+                start_t = slot_data.get("start_time", "--:--")
+                off_schedule_text = ThaiPhraseBuilder.build_off_schedule_upcoming_reminder(
+                    greeting, label, start_t, before, after
+                )
+                _safe_synth(off_schedule_text)
 
         gc.collect()
         logger.info("[TTS Precompiler] Pre-compilation completed successfully!")

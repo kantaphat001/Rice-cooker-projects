@@ -70,6 +70,8 @@ class UltrasonicSensor:
         self._thread = None
         self._presence_start = None
         self.eco_mode = False
+        self.is_hardware_fault = False
+        self._fail_count = 0
 
         if not self._is_mock:
             self._init_hardware()
@@ -139,9 +141,14 @@ class UltrasonicSensor:
                 dist_cm = self._sensor.distance * 100.0
                 if 2.0 <= dist_cm <= 250.0:
                     self._readings.append(dist_cm)
+                    self._fail_count = 0
+                    self.is_hardware_fault = False
                     return statistics.median(self._readings)
                 return 150.0
             except Exception:
+                self._fail_count += 1
+                if self._fail_count >= 5:
+                    self.is_hardware_fault = True
                 return 999.0
 
         return 150.0

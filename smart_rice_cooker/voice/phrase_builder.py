@@ -95,6 +95,25 @@ class ThaiPhraseBuilder:
                 f"เพื่อความปลอดภัยและป้องกันการรับยาซ้ำซ้อน ขอแนะนำให้เว้นยามื้อที่ผ่านมา และเตรียมรับประทานตามเวลามื้อ{next_slot_label}ตามปกตินะคะ")
 
     @staticmethod
+    def build_off_schedule_upcoming_reminder(greeting: str, next_label: str, next_time: str, before_meds: List[Dict], after_meds: List[Dict]) -> str:
+        """
+        Elderly-friendly and judge-demonstration reminder outside scheduled meal times.
+        States clearly that it is currently off-schedule, but informs about the next meal and medications.
+        """
+        g = ThaiPhraseBuilder._clean_greeting(greeting)
+        all_meds = (before_meds or []) + (after_meds or [])
+        if not all_meds:
+            return ThaiPhraseBuilder.build_next_meal_friendly_status(greeting, next_label, next_time)
+
+        parts = [f"{g} ขณะนี้อยู่นอกเวลามื้อยา สำหรับมื้อถัดไปคือ{next_label} เวลา {next_time} น. นะคะ"]
+        if before_meds:
+            parts.append(f"โดยมียาก่อนอาหาร คือ {' และ '.join([ThaiPhraseBuilder._format_med_item(m) for m in before_meds])} ค่ะ")
+        if after_meds:
+            parts.append(f"และยาหลังอาหาร คือ {' และ '.join([ThaiPhraseBuilder._format_med_item(m) for m in after_meds])} ด้วยนะคะ")
+        parts.append("ขอให้มีความสุขและมีสุขภาพที่แข็งแรงนะคะ")
+        return " ".join(parts)
+
+    @staticmethod
     def build_next_meal_friendly_status(greeting: str, next_label: str, next_time: str) -> str:
         """Friendly non-intrusive status when earlier meds are taken and system is in between meals."""
         g = ThaiPhraseBuilder._clean_greeting(greeting)

@@ -136,19 +136,26 @@ class CameraManager:
 
     def resume(self):
         """Wakes up camera hardware and performs Auto-Exposure warm-up frames."""
-        if not self._is_suspended and self._cap and self._cap.isOpened():
-            return
-        logger.info("[Camera] Resuming camera hardware from Eco-Sleep...")
         with self._lock:
+            if not self._is_suspended and self._cap and self._cap.isOpened() and self._thread and self._thread.is_alive():
+                return
+            logger.info("[Camera] Resuming camera hardware from Eco-Sleep...")
             self._open_camera()
             if self._cap and self._cap.isOpened():
                 # Auto-Exposure / AWB Warm-up: discard initial dark/blown-out frames
                 logger.info(f"[Camera] Performing Auto-Exposure warm-up ({self.warmup_frames} frames)...")
                 for _ in range(self.warmup_frames):
-                    self._cap.read()
+                    try:
+                        self._cap.read()
+                    except Exception:
+                        pass
                     time.sleep(0.02)
                 logger.info("[Camera] Auto-Exposure stabilized.")
             self._is_suspended = False
+            self._running = True
+            if self._thread is None or not self._thread.is_alive():
+                self._thread = threading.Thread(target=self._capture_loop, daemon=True, name="CamCaptureThread")
+                self._thread.start()
 
     def set_active_mode(self, active: bool):
         """Switches between 1 FPS (standby) and 15 FPS (active detection)."""
@@ -181,19 +188,29 @@ class CameraManager:
             target_fps = self.active_fps if self._is_active_mode else self.standby_fps
             target_interval = 1.0 / max(1.0, target_fps)
 
-            if not self._is_mock and self._cap and self._cap.isOpened():
-                ret, frame = self._cap.read()
-                if ret and frame is not None and frame.size > 0:
-                    self._consecutive_failures = 0
+            if not self._is_mock:
+                try:
                     with self._lock:
-                        self._latest_frame = frame
-                else:
-                    self._consecutive_failures += 1
-                    logger.warning(f"[Camera] Frame grab failed ({self._consecutive_failures}/{self._max_consecutive_failures})")
-                    if self._consecutive_failures >= self._max_consecutive_failures:
-                        logger.error("[Camera] Excessive frame drops. Watchdog triggering auto-reconnect...")
-                        time.sleep(1.0)
-                        self._open_camera()
+                        if self._is_suspended or not self._cap or not self._cap.isOpened():
+                            time.sleep(0.1)
+                            continue
+                        ret, frame = self._cap.read()
+
+                    if ret and frame is not None and frame.size > 0:
+                        self._consecutive_failures = 0
+                        with self._lock:
+                            self._latest_frame = frame
+                    else:
+                        self._consecutive_failures += 1
+                        logger.warning(f"[Camera] Frame grab failed ({self._consecutive_failures}/{self._max_consecutive_failures})")
+                        if self._consecutive_failures >= self._max_consecutive_failures:
+                            logger.error("[Camera] Excessive frame drops. Watchdog triggering auto-reconnect...")
+                            time.sleep(1.0)
+                            with self._lock:
+                                self._open_camera()
+                except Exception as e:
+                    logger.warning(f"[Camera] Exception in capture loop: {e}")
+                    time.sleep(0.2)
             else:
                 # Generate synthetic test frame if numpy/cv2 available
                 if np is not None and cv2 is not None:

@@ -55,8 +55,8 @@ class TTSEngine:
 
     async def _generate_async(self, text: str, output_path: Path):
         communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
-        # 15.0s timeout to allow long meal announcements
-        await asyncio.wait_for(communicate.save(str(output_path)), timeout=15.0)
+        # 45.0s timeout to allow long detailed meal and medication announcements
+        await asyncio.wait_for(communicate.save(str(output_path)), timeout=45.0)
 
     def synthesize(self, text: str, permanent: bool = False) -> Optional[Path]:
         """
@@ -79,20 +79,24 @@ class TTSEngine:
             logger.warning(f"[TTS] Cannot synthesize new text offline without edge-tts or gTTS: '{text}'")
             return None
 
-        # 1. Try Edge-TTS (Neural Voice - Highest Quality)
+        # 1. Try Edge-TTS (Neural Voice - Highest Quality) with retry & backup neural voice
         if EDGE_TTS_AVAILABLE:
-            try:
-                logger.info(f"[TTS] Generating speech with Edge-TTS for: '{text[:30]}...' (Voice: {self.voice})")
-                asyncio.run(self._generate_async(text, output_path))
-                if output_path.is_file() and output_path.stat().st_size > 0:
-                    return output_path
-            except Exception as e:
-                logger.warning(f"[TTS] Edge-TTS synthesis failed ({e}), checking fallback...")
-                if output_path.is_file() and output_path.stat().st_size == 0:
-                    try:
-                        output_path.unlink()
-                    except Exception:
-                        pass
+            for voice_candidate in [self.voice, "th-TH-NiwatNeural"]:
+                try:
+                    logger.info(f"[TTS] Generating speech with Edge-TTS for: '{text[:30]}...' (Voice: {voice_candidate})")
+                    communicate = edge_tts.Communicate(text, voice_candidate, rate=self.rate)
+                    asyncio.run(asyncio.wait_for(communicate.save(str(output_path)), timeout=45.0))
+                    if output_path.is_file() and output_path.stat().st_size > 0:
+                        return output_path
+                except Exception as e:
+                    logger.warning(f"[TTS] Edge-TTS with {voice_candidate} failed: {e}")
+                    if output_path.is_file() and output_path.stat().st_size == 0:
+                        try:
+                            output_path.unlink()
+                        except Exception:
+                            pass
+                    import time
+                    time.sleep(1.0)
 
         # 2. Fallback to gTTS if available
         if GTTS_AVAILABLE:

@@ -9,11 +9,14 @@ import time
 from pathlib import Path
 import paramiko
 
-PI_HOST = "192.168.137.102"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+from smart_rice_cooker.utils import get_pi_ip
+
+PI_HOST = get_pi_ip()
 PI_USER = "pi"
 PI_PASS = "1234"
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
 
 def sync():
     print(f"[*] Connecting to Raspberry Pi at {PI_HOST}...")
@@ -32,6 +35,9 @@ def sync():
     files_to_sync = [
         ("smart_rice_cooker/config/settings.py", "/home/pi/smart_rice_cooker/config/settings.py"),
         ("smart_rice_cooker/service.py", "/home/pi/smart_rice_cooker/service.py"),
+        ("smart_rice_cooker/hardware/camera_manager.py", "/home/pi/smart_rice_cooker/hardware/camera_manager.py"),
+        ("smart_rice_cooker/hardware/ultrasonic_sensor.py", "/home/pi/smart_rice_cooker/hardware/ultrasonic_sensor.py"),
+        ("smart_rice_cooker/voice/tts_engine.py", "/home/pi/smart_rice_cooker/voice/tts_engine.py"),
         ("smart_rice_cooker/voice/phrase_builder.py", "/home/pi/smart_rice_cooker/voice/phrase_builder.py"),
         ("smart_rice_cooker/voice/audio_player.py", "/home/pi/smart_rice_cooker/voice/audio_player.py"),
         ("smart_rice_cooker/voice/tts_precompiler.py", "/home/pi/smart_rice_cooker/voice/tts_precompiler.py"),
