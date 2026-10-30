@@ -30,7 +30,11 @@ except (ImportError, Exception):
     GPIOZERO_AVAILABLE = False
     logger.warning("[Ultrasonic] gpiozero not available. Running in MOCK mode.")
 
-# Check optional ADS1115 ADC availability
+try:
+    import RPi.GPIO as RPI_GPIO
+    RPI_GPIO_AVAILABLE = True
+except Exception:
+    RPI_GPIO_AVAILABLE = False
 ADS1115_AVAILABLE = False
 try:
     import board
@@ -117,10 +121,53 @@ class UltrasonicSensor:
         mode_str = "ECO SNIFFER (1.2s pulses, 0 heat)" if enabled else "ACTIVE REAL-TIME (10Hz)"
         logger.info(f"[Ultrasonic] Mode changed -> {mode_str}")
 
+    def _read_direct_pulse(self) -> Optional[float]:
+        if not RPI_GPIO_AVAILABLE or self.trig_pin is None or self.echo_pin is None:
+            return None
+        try:
+            RPI_GPIO.setmode(RPI_GPIO.BCM)
+            RPI_GPIO.setwarnings(False)
+            RPI_GPIO.setup(self.trig_pin, RPI_GPIO.OUT)
+            RPI_GPIO.setup(self.echo_pin, RPI_GPIO.IN)
+
+            RPI_GPIO.output(self.trig_pin, False)
+            time.sleep(0.000002)
+
+            RPI_GPIO.output(self.trig_pin, True)
+            time.sleep(0.000010)
+            RPI_GPIO.output(self.trig_pin, False)
+
+            t0 = time.perf_counter()
+            timeout0 = t0 + 0.03
+            while RPI_GPIO.input(self.echo_pin) == 0:
+                t0 = time.perf_counter()
+                if t0 > timeout0:
+                    return None
+
+            t1 = t0
+            timeout1 = t0 + 0.03
+            while RPI_GPIO.input(self.echo_pin) == 1:
+                t1 = time.perf_counter()
+                if t1 > timeout1:
+                    return None
+
+            dist = ((t1 - t0) * 34300) / 2
+            return dist
+        except Exception:
+            return None
+
     def get_distance_cm(self) -> float:
         """Returns median distance in centimeters."""
         if self._is_mock:
             return 150.0
+
+        # Try high-precision direct polling first
+        direct_dist = self._read_direct_pulse()
+        if direct_dist is not None and 2.0 <= direct_dist <= 250.0:
+            self._readings.append(direct_dist)
+            self._fail_count = 0
+            self.is_hardware_fault = False
+            return statistics.median(self._readings)
 
         # A. US-016 with ADC
         if self._adc_chan is not None:
