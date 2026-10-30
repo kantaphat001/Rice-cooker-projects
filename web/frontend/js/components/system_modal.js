@@ -20,6 +20,7 @@ export function setupSystemModal() {
       <div id="modal-system-backdrop" class="modal-backdrop fixed inset-0"></div>
 
       <div class="glass-sheet w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 relative z-10 max-h-[90vh] overflow-y-auto no-scrollbar space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-2 sm:hidden shrink-0"></div>
         <!-- Header -->
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
           <div class="flex items-center gap-2.5">

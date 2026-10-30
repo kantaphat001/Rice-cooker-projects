@@ -32,7 +32,25 @@ export function renderScheduleBoard() {
   const adherenceState = store.getState().adherence || {};
   const memberRecords = adherenceState.records?.[currentMemberId] || {};
 
-  container.innerHTML = slotKeys.map((key) => {
+  const jumpBarHtml = `
+    <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 hidden sm:inline">ข้ามไปมื้อ:</span>
+      <button onclick="document.getElementById('meal-section-morning')?.scrollIntoView({behavior:'smooth'})" class="px-3 py-1.5 rounded-xl bg-white/80 hover:bg-emerald-50 text-slate-700 text-xs font-semibold shrink-0 border border-slate-200/60 shadow-2xs transition active:scale-95 flex items-center gap-1">
+        <span>🌅</span><span>มื้อเช้า</span>
+      </button>
+      <button onclick="document.getElementById('meal-section-noon')?.scrollIntoView({behavior:'smooth'})" class="px-3 py-1.5 rounded-xl bg-white/80 hover:bg-emerald-50 text-slate-700 text-xs font-semibold shrink-0 border border-slate-200/60 shadow-2xs transition active:scale-95 flex items-center gap-1">
+        <span>☀️</span><span>มื้อกลางวัน</span>
+      </button>
+      <button onclick="document.getElementById('meal-section-evening')?.scrollIntoView({behavior:'smooth'})" class="px-3 py-1.5 rounded-xl bg-white/80 hover:bg-emerald-50 text-slate-700 text-xs font-semibold shrink-0 border border-slate-200/60 shadow-2xs transition active:scale-95 flex items-center gap-1">
+        <span>🌙</span><span>มื้อเย็น</span>
+      </button>
+      <button onclick="document.getElementById('meal-section-bedtime')?.scrollIntoView({behavior:'smooth'})" class="px-3 py-1.5 rounded-xl bg-white/80 hover:bg-emerald-50 text-slate-700 text-xs font-semibold shrink-0 border border-slate-200/60 shadow-2xs transition active:scale-95 flex items-center gap-1">
+        <span>🛌</span><span>ก่อนนอน</span>
+      </button>
+    </div>
+  `;
+
+  container.innerHTML = jumpBarHtml + slotKeys.map((key) => {
     const slot = schedules[key] || { label: key, start_time: '', end_time: '', before_meal: [], after_meal: [] };
     const icon = slotIcons[key] || '⏰';
     const beforeMeds = slot.before_meal || [];

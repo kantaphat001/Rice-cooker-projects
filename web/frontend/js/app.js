@@ -26,9 +26,12 @@ function renderApp() {
 }
 
 function attachDynamicEventListeners() {
-  // Header Buttons
+  // Header Buttons (Desktop & Mobile)
   const demoBtn = document.getElementById('btn-open-demo');
   if (demoBtn) demoBtn.onclick = openDemoModal;
+
+  const demoMobileBtn = document.getElementById('btn-open-demo-mobile');
+  if (demoMobileBtn) demoMobileBtn.onclick = openDemoModal;
 
   const historyBtn = document.getElementById('btn-open-history');
   if (historyBtn) historyBtn.onclick = openHistoryModal;
@@ -38,6 +41,47 @@ function attachDynamicEventListeners() {
 
   const wifiBtn = document.getElementById('btn-open-wifi');
   if (wifiBtn) wifiBtn.onclick = openWifiModal;
+
+  // Mobile Bottom Tab Bar Buttons
+  const navDemo = document.getElementById('nav-mobile-demo');
+  if (navDemo) navDemo.onclick = openDemoModal;
+
+  const navHistory = document.getElementById('nav-mobile-history');
+  if (navHistory) navHistory.onclick = openHistoryModal;
+
+  const navSystem = document.getElementById('nav-mobile-system');
+  if (navSystem) navSystem.onclick = openSystemModal;
+
+  const navWifi = document.getElementById('nav-mobile-wifi');
+  if (navWifi) navWifi.onclick = openWifiModal;
+
+  // Mobile More Options Sheet
+  const moreMobileBtn = document.getElementById('btn-open-more-mobile');
+  const moreModal = document.getElementById('modal-more-options');
+  const moreBackdrop = document.getElementById('modal-more-backdrop');
+  const closeMoreBtn = document.getElementById('btn-close-more-modal');
+
+  const closeMore = () => { if (moreModal) moreModal.classList.add('hidden'); };
+  if (moreMobileBtn && moreModal) {
+    moreMobileBtn.onclick = () => moreModal.classList.remove('hidden');
+  }
+  if (moreBackdrop) moreBackdrop.onclick = closeMore;
+  if (closeMoreBtn) closeMoreBtn.onclick = closeMore;
+
+  const moreQrBtn = document.getElementById('btn-more-qr');
+  if (moreQrBtn) moreQrBtn.onclick = () => { closeMore(); openQrModal(); };
+
+  const moreShortcutBtn = document.getElementById('btn-more-shortcut');
+  if (moreShortcutBtn) moreShortcutBtn.onclick = () => { closeMore(); openShortcutModal(); };
+
+  const moreShutdownBtn = document.getElementById('btn-more-shutdown');
+  if (moreShutdownBtn) {
+    moreShutdownBtn.onclick = () => {
+      closeMore();
+      const shutdownBtn = document.getElementById('btn-shutdown-pi');
+      if (shutdownBtn) shutdownBtn.click();
+    };
+  }
 
   const qrBtn = document.getElementById('btn-open-qr');
   if (qrBtn) qrBtn.onclick = openQrModal;

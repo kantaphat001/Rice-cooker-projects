@@ -53,23 +53,27 @@
     <section id="schedule-board-container" class="space-y-5"></section>
   </main>
 
-  <!-- Mobile Quick Dock (Floating Bottom Bar for Fast Jumping) -->
-  <nav class="sm:hidden fixed bottom-0 inset-x-0 glass-nav border-t border-slate-200/50 safe-area-bottom z-30 px-3 py-2 flex items-center justify-around text-[11px] font-semibold text-slate-600">
-    <button onclick="document.getElementById('meal-section-morning')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
-      <span class="text-lg">🌅</span>
-      <span>เช้า</span>
+  <!-- Mobile Primary Dock (Apple iOS Tab Bar for Phones, Foldables & Tablets) -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 glass-nav border-t border-slate-200/60 safe-area-bottom z-30 px-1 py-1 flex items-center justify-around text-[10px] font-semibold text-slate-600 shadow-lg">
+    <button id="nav-mobile-home" onclick="window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-emerald-700 active:scale-95 transition flex-1">
+      <span class="text-lg">💊</span>
+      <span>ตารางยา</span>
     </button>
-    <button onclick="document.getElementById('meal-section-noon')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
-      <span class="text-lg">☀️</span>
-      <span>กลางวัน</span>
+    <button id="nav-mobile-demo" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-purple-700 active:scale-95 transition flex-1 font-bold">
+      <span class="text-lg">🎭</span>
+      <span>สาธิต</span>
     </button>
-    <button onclick="document.getElementById('meal-section-evening')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
-      <span class="text-lg">🌙</span>
-      <span>เย็น</span>
+    <button id="nav-mobile-history" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-teal-700 active:scale-95 transition flex-1">
+      <span class="text-lg">📋</span>
+      <span>ประวัติ</span>
     </button>
-    <button onclick="document.getElementById('meal-section-bedtime')?.scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-2 hover:text-emerald-700 active:scale-95 transition">
-      <span class="text-lg">🛌</span>
-      <span>ก่อนนอน</span>
+    <button id="nav-mobile-system" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-slate-700 active:scale-95 transition flex-1">
+      <span class="text-lg">⚙️</span>
+      <span>ระบบ</span>
+    </button>
+    <button id="nav-mobile-wifi" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-sky-700 active:scale-95 transition flex-1">
+      <span class="text-lg">📶</span>
+      <span>Wi-Fi</span>
     </button>
   </nav>
 
