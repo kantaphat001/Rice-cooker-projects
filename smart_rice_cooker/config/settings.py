@@ -38,9 +38,9 @@ AUTO_ACKNOWLEDGE_ON_REMIND = True
 
 # Ultrasonic Configuration (HC-SR04 / US-016)
 ULTRASONIC_MODEL = os.getenv("ULTRASONIC_MODEL", "HC-SR04") # "HC-SR04" or "US-016"
-PIN_ULTRASONIC_TRIG = int(os.getenv("PIN_ULTRASONIC_TRIG", 23)) # Pin 16 - HC-SR04 Trigger
-PIN_ULTRASONIC_ECHO = int(os.getenv("PIN_ULTRASONIC_ECHO", 24)) # Pin 18 - HC-SR04 Echo
-PIN_ULTRASONIC_OUT = int(os.getenv("PIN_ULTRASONIC_OUT", 24))   # Pin 18 - US-016 OUT (if used)
+PIN_ULTRASONIC_TRIG = int(os.getenv("PIN_ULTRASONIC_TRIG", 20)) # Pin 38 - HC-SR04 Trigger (GPIO 20)
+PIN_ULTRASONIC_ECHO = int(os.getenv("PIN_ULTRASONIC_ECHO", 21)) # Pin 40 - HC-SR04 Echo (GPIO 21)
+PIN_ULTRASONIC_OUT = int(os.getenv("PIN_ULTRASONIC_OUT", 21))   # Pin 40 - US-016 OUT (if used)
 
 # Ultrasonic Thresholds & Anti-False-Trigger Hardening
 DISTANCE_TRIGGER_CM = float(os.getenv("DISTANCE_TRIGGER_CM", 45.0))

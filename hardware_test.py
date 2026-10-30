@@ -69,8 +69,8 @@ def main():
     print("=" * 70)
     print(f" Target Box: {PI_USER}@{PI_IP}")
     print()
-    print("  [1] ทดสอบไฟ LED 3 สี (แดง GPIO 17 -> เหลือง GPIO 27 -> เขียว GPIO 22)")
-    print("  [2] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะทางสด TRIG 23, ECHO 24)")
+    print("  [1] ทดสอบไฟ LED 3 สี (แดง Pin 11 [GPIO 17] -> เหลือง Pin 13 [GPIO 27] -> เขียว Pin 15 [GPIO 22])")
+    print("  [2] ทดสอบเซนเซอร์ Ultrasonic HC-SR04 (วัดระยะสด TRIG Pin 38 [GPIO 20], ECHO Pin 40 [GPIO 21])")
     print("  [3] ทดสอบเสียงพูดภาษาไทย (เล่นออกลำโพงคอมพิวเตอร์ Windows และ Pi)")
     print("  [4] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
     print("  [5] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
@@ -151,13 +151,17 @@ sensor = UltrasonicSensor(
 )
 print(f'[*] เซนเซอร์ที่ใช้งาน: {sensor.model}')
 print('----------------------------------------------------------------------')
-for i in range(35):
+for i in range(40):
     dist = sensor.get_distance_cm()
-    present = (dist < settings.DISTANCE_TRIGGER_CM)
-    status = '🚶 [ตรวจพบคนเข้าใกล้!]' if present else '🟢 [ระยะปกติ / นอกระยะ]'
-    bar = '█' * int(min(max(dist, 0), 100) / 4)
-    print(f'📡 วัดระยะได้: {dist:5.1f} ซม. |{bar:<25}| {status}')
-    time.sleep(0.3)
+    raw_v = sensor._sensor.value if (sensor._sensor and hasattr(sensor._sensor, 'value')) else None
+    if raw_v == 0.0 and dist >= 149.0:
+        print(f'[{i+1:02d}/40] 📡 กำลังรอคลื่นสะท้อน (No Echo) -> ลองนำมือ/สมุดมาบังหน้ารูเซนเซอร์ 20-30 ซม. หรือเช็คสาย Pin 40')
+    else:
+        present = (dist < settings.DISTANCE_TRIGGER_CM)
+        status = '🚶 [ตรวจพบคนเข้าใกล้!]' if present else '🟢 [ระยะปกติ / นอกระยะ]'
+        bar = '█' * int(min(max(dist, 0), 100) / 4)
+        print(f'[{i+1:02d}/40] 📡 วัดระยะได้: {dist:5.1f} ซม. |{bar:<25}| {status}')
+    time.sleep(0.35)
 
 sensor.stop_monitoring()
 print('[+] จบการทดสอบ Ultrasonic')

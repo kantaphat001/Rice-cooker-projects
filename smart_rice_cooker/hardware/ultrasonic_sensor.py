@@ -44,9 +44,9 @@ except Exception:
 
 class UltrasonicSensor:
     def __init__(self,
-                 trig_pin: Optional[int] = 23,
-                 echo_pin: Optional[int] = 24,
-                 out_pin: int = 24,
+                 trig_pin: Optional[int] = 20,
+                 echo_pin: Optional[int] = 21,
+                 out_pin: int = 21,
                  model: str = "HC-SR04",
                  threshold_cm: float = 70.0,
                  hold_time_sec: float = 0.8,
