@@ -58,20 +58,21 @@ class TTSEngine:
         # 45.0s timeout to allow long detailed meal and medication announcements
         await asyncio.wait_for(communicate.save(str(output_path)), timeout=45.0)
 
-    def synthesize(self, text: str, permanent: bool = False) -> Optional[Path]:
+    def synthesize(self, text: str, permanent: bool = False, force: bool = False) -> Optional[Path]:
         """
         Returns path to .mp3 file. Uses precompiled or RAM cache if available,
         otherwise synthesizes online directly into permanent cache or RAM disk (/dev/shm).
+        Strictly enforces polite, natural Thai female voice (th-TH-PremwadeeNeural or female gTTS).
         """
         text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{text}".encode("utf-8")).hexdigest()
         perm_path = self.cache_dir / f"{text_hash}.mp3"
-        if perm_path.is_file() and perm_path.stat().st_size > 0:
+        if not force and perm_path.is_file() and perm_path.stat().st_size > 0:
             logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...' ({perm_path})")
             return perm_path
 
         output_path = perm_path if permanent else self.get_audio_path_for_text(text)
 
-        if output_path.is_file() and output_path.stat().st_size > 0:
+        if not force and output_path.is_file() and output_path.stat().st_size > 0:
             logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...' ({output_path})")
             return output_path
 
@@ -79,24 +80,25 @@ class TTSEngine:
             logger.warning(f"[TTS] Cannot synthesize new text offline without edge-tts or gTTS: '{text}'")
             return None
 
-        # 1. Try Edge-TTS (Neural Voice - Highest Quality) with retry & backup neural voice
+        # 1. Try Edge-TTS (Female Neural Voice: th-TH-PremwadeeNeural) with up to 3 retries
         if EDGE_TTS_AVAILABLE:
-            for voice_candidate in [self.voice, "th-TH-NiwatNeural"]:
+            for attempt in range(3):
                 try:
-                    logger.info(f"[TTS] Generating speech with Edge-TTS for: '{text[:30]}...' (Voice: {voice_candidate})")
-                    communicate = edge_tts.Communicate(text, voice_candidate, rate=self.rate)
-                    asyncio.run(asyncio.wait_for(communicate.save(str(output_path)), timeout=45.0))
+                    current_rate = self.rate if attempt == 0 else "+0%"
+                    logger.info(f"[TTS] Generating female speech with Edge-TTS for: '{text[:30]}...' (Voice: {self.voice}, rate: {current_rate}, attempt {attempt+1})")
+                    communicate = edge_tts.Communicate(text, self.voice, rate=current_rate)
+                    asyncio.run(asyncio.wait_for(communicate.save(str(output_path)), timeout=20.0))
                     if output_path.is_file() and output_path.stat().st_size > 0:
                         return output_path
                 except Exception as e:
-                    logger.warning(f"[TTS] Edge-TTS with {voice_candidate} failed: {e}")
+                    logger.warning(f"[TTS] Edge-TTS attempt {attempt+1} failed: {e}")
                     if output_path.is_file() and output_path.stat().st_size == 0:
                         try:
                             output_path.unlink()
                         except Exception:
                             pass
                     import time
-                    time.sleep(1.0)
+                    time.sleep(0.8)
 
         # 2. Fallback to gTTS if available
         if GTTS_AVAILABLE:

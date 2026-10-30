@@ -20,13 +20,13 @@ class TTSPrecompiler:
         self.tts = tts_engine
         self.repo = repository
 
-    def precompile_all(self):
+    def precompile_all(self, force: bool = False):
         logger.info("[TTS Precompiler] Pre-compiling static phrases to permanent offline cache...")
         members = self.repo.get_all_members()
 
         def _safe_synth(text: str):
             try:
-                self.tts.synthesize(text, permanent=True)
+                self.tts.synthesize(text, permanent=True, force=force)
                 time.sleep(0.8)
             except Exception as e:
                 logger.warning(f"[TTS Precompiler] Skip error: {e}")

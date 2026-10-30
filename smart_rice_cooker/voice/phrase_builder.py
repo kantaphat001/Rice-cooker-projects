@@ -122,7 +122,7 @@ class ThaiPhraseBuilder:
     @staticmethod
     def build_unacknowledged_followup(display_name: str) -> str:
         """Polite follow-up reminder if user enters proximity during cooldown."""
-        return f"{display_name}คะ เครื่องเตือนยาขออนุญาตเตือนนะคะ อย่าลืมรับประทานยาตามเวลา เพื่อสุขภาพร่างกายที่แข็งแรงสมบูรณ์นะคะ"
+        return f"{display_name}คะ อย่าลืมรับประทานยาตามเวลา เพื่อสุขภาพร่างกายที่แข็งแรงนะคะ"
 
     @staticmethod
     def build_already_taken_message(display_name: str) -> str:
@@ -143,4 +143,4 @@ class ThaiPhraseBuilder:
     @staticmethod
     def build_acknowledge_confirmation_message() -> str:
         """Polite confirmation when medication acknowledgement is recorded."""
-        return "เครื่องเตือนยาบันทึกข้อมูลเรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"
+        return "เครื่องเตือนยาบันทึกข้อมูลสำเร็จแล้วค่ะ ขอบพระคุณค่ะ ขอให้สุขภาพร่างกายแข็งแรงนะคะ"
