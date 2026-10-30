@@ -11,8 +11,6 @@ import logging
 import signal
 
 from .config import settings
-from .service import CompanionService
-from .ui.native_gui import NativeElderlyGUI
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +26,27 @@ def main():
     parser.add_argument("--rebuild-faces", action="store_true", help="Rebuild face recognition embeddings database")
     args = parser.parse_args()
 
+    # Fast, isolated rebuild without claiming hardware pins or camera devices
+    if args.rebuild_faces:
+        logger.info("Rebuilding face embeddings...")
+        from .vision.yunet_detector import YuNetDetector
+        from .vision.sface_recognizer import SFaceRecognizer
+        from .vision.face_database import FaceDatabase
+        detector = YuNetDetector(settings.YUNET_MODEL_FILE, conf_threshold=settings.FACE_DETECTION_CONFIDENCE)
+        recognizer = SFaceRecognizer(settings.SFACE_MODEL_FILE)
+        face_db = FaceDatabase(
+            dataset_dir=settings.DATASET_DIR,
+            detector=detector,
+            recognizer=recognizer,
+            match_threshold=settings.FACE_RECOGNITION_THRESHOLD
+        )
+        face_db.rebuild_database()
+        logger.info("Face database rebuilt successfully. Exiting.")
+        return
+
+    from .service import CompanionService
+    from .ui.native_gui import NativeElderlyGUI
+
     gui_instance = None
     if args.gui or (not args.headless and os.getenv("DISPLAY")):
         gui_instance = NativeElderlyGUI(fullscreen=False)
@@ -36,12 +55,6 @@ def main():
 
     if gui_instance:
         gui_instance.on_ack_callback = service._handle_button_press
-
-    if args.rebuild_faces:
-        logger.info("Rebuilding face embeddings...")
-        service.face_db.rebuild_database()
-        logger.info("Face database rebuilt. Exiting.")
-        return
 
     def sigint_handler(sig, frame):
         logger.info("Interrupt received, stopping service...")
@@ -58,12 +71,9 @@ def main():
         gui_instance.start()
     else:
         # Headless keep-alive loop
-        logger.info("Running in headless console mode. Press Ctrl+C to exit.")
-        try:
-            while True:
-                signal.pause() if hasattr(signal, "pause") else sys.stdin.read()
-        except (KeyboardInterrupt, SystemExit):
-            service.stop()
+        while service._running:
+            import time
+            time.sleep(1.0)
 
 if __name__ == "__main__":
     main()

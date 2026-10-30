@@ -2,6 +2,7 @@
 face_database.py - Family Member Face Database Manager
 Stores known face embeddings for family members (e.g. grandpa, grandma).
 Matches incoming frames against known profiles using Cosine Similarity.
+Auto-reloads embeddings when updated by Web Portal.
 """
 
 import os
@@ -26,11 +27,24 @@ class FaceDatabase:
 
         self.cache_file = self.dataset_dir / "embeddings.npz"
         self._members_embeddings: Dict[str, List[np.ndarray]] = {}
+        self._last_mtime: float = 0.0
         self.load_or_rebuild()
+
+    def _check_reload(self):
+        """Auto-detect if embeddings.npz was updated by web companion or external enrollment."""
+        if self.cache_file.is_file():
+            try:
+                mtime = self.cache_file.stat().st_mtime
+                if mtime != self._last_mtime:
+                    logger.info("[FaceDB] Detected embeddings.npz update, reloading into RAM...")
+                    self.load_or_rebuild()
+            except Exception:
+                pass
 
     def load_or_rebuild(self):
         if self.cache_file.is_file():
             try:
+                self._last_mtime = self.cache_file.stat().st_mtime
                 data = np.load(str(self.cache_file), allow_pickle=True)
                 loaded = {}
                 for k in data.files:
@@ -78,6 +92,10 @@ class FaceDatabase:
         # Save to cache
         if self._members_embeddings:
             np.savez(str(self.cache_file), **self._members_embeddings)
+            try:
+                self._last_mtime = self.cache_file.stat().st_mtime
+            except Exception:
+                pass
             logger.info(f"[FaceDB] Saved embeddings cache to {self.cache_file}")
 
     def identify(self, frame: np.ndarray) -> Tuple[Optional[str], float, Optional[np.ndarray]]:
@@ -88,6 +106,7 @@ class FaceDatabase:
             or ("unknown", confidence, face_box)
             or (None, 0.0, None) if no face detected.
         """
+        self._check_reload()
         if frame is None or not self.detector.is_ready or not self.recognizer.is_ready:
             return None, 0.0, None
 

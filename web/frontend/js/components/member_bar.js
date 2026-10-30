@@ -4,7 +4,7 @@
  */
 
 import { store } from '../state.js';
-import { openDeleteMemberModal } from './shortcut_modal.js';
+import { openDeleteMemberModal, openAddMemberModal } from './shortcut_modal.js';
 
 export function renderMemberBar() {
   const container = document.getElementById('member-bar-container');
@@ -125,6 +125,11 @@ export function renderMemberBar() {
       if (id) store.selectMember(id);
     });
   });
+
+  const addMemberBtn = document.getElementById('btn-open-add-member');
+  if (addMemberBtn) {
+    addMemberBtn.onclick = openAddMemberModal;
+  }
 
   const deleteBtn = document.getElementById('btn-delete-member');
   if (deleteBtn && currentMemberId && currentMember) {
