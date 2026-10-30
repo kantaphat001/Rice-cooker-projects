@@ -1,18 +1,23 @@
 """
 wifi_manager.py - Raspberry Pi Wi-Fi Network Manager
-Manage, scan, and save Wi-Fi networks on Raspberry Pi remotely.
-Allows pre-registering Wi-Fi networks (e.g. Grandma's house, phone hotspot)
-so the Pi auto-connects seamlessly when moved to other locations.
+Manage, scan, and save Wi-Fi networks on Raspberry Pi.
+Supports Dual-Mode:
+- When running natively on Raspberry Pi (e.g. from web manager or CLI on Pi):
+  Executes NetworkManager CLI (`nmcli`) locally via subprocess with zero dependencies (no paramiko required).
+- When running remotely on PC:
+  Executes via SSH using paramiko.
 """
 
+import os
 import sys
 import time
+import socket
+import subprocess
 from pathlib import Path
+from typing import List, Dict, Tuple, Optional
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
-
-from smart_rice_cooker.utils import get_pi_ip
 
 PI_USER = "pi"
 PI_PASS = "1234"
@@ -23,44 +28,99 @@ try:
 except ImportError:
     PARAMIKO_AVAILABLE = False
 
+
+def is_running_on_pi() -> bool:
+    """Check if running natively on Raspberry Pi."""
+    try:
+        if Path("/home/pi").is_dir():
+            return socket.gethostname() == "raspberrypi" or str(ROOT_DIR).startswith("/home/pi")
+    except Exception:
+        pass
+    return False
+
+
 def _get_ssh():
+    """Establish SSH connection to Raspberry Pi when running from PC."""
     if not PARAMIKO_AVAILABLE:
-        raise RuntimeError("Paramiko is not installed. Please run: pip install paramiko")
+        raise RuntimeError("Paramiko is not installed on PC. Please run: pip install paramiko")
+    try:
+        from web.backend.network_utils import get_pi_ip
+    except ImportError:
+        from smart_rice_cooker.utils import get_pi_ip
     ip = get_pi_ip()
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=6)
     return ssh
 
-def get_current_wifi():
+
+def _exec_command(cmd: str, timeout: int = 25) -> Tuple[bool, str, str]:
+    """
+    Execute a shell command either locally on Pi or remotely via SSH.
+    Returns (success, stdout, stderr).
+    """
+    if is_running_on_pi():
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            stdout, stderr = proc.communicate(input=f"{PI_PASS}\n", timeout=timeout)
+            return (proc.returncode == 0, stdout.strip(), stderr.strip())
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            return (False, "", "Command timed out")
+        except Exception as e:
+            return (False, "", str(e))
+    else:
+        ssh = None
+        try:
+            ssh = _get_ssh()
+            stdin, stdout, stderr = ssh.exec_command(cmd, timeout=timeout)
+            if "sudo -S" in cmd:
+                stdin.write(f"{PI_PASS}\n")
+                stdin.flush()
+            out_str = stdout.read().decode('utf-8', errors='replace').strip()
+            err_str = stderr.read().decode('utf-8', errors='replace').strip()
+            return (True, out_str, err_str)
+        except Exception as e:
+            return (False, "", str(e))
+        finally:
+            if ssh:
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+
+
+def get_current_wifi() -> Optional[str]:
     """Returns the name of the currently connected Wi-Fi or None."""
     try:
-        ssh = _get_ssh()
-        stdin, stdout, stderr = ssh.exec_command("nmcli -t -f NAME,DEVICE connection show --active")
-        lines = stdout.read().decode('utf-8', errors='replace').strip().splitlines()
-        ssh.close()
-        for line in lines:
+        ok, out, _ = _exec_command("nmcli -t -f NAME,DEVICE connection show --active", timeout=5)
+        for line in out.splitlines():
             parts = line.split(':')
             if len(parts) >= 2 and parts[1] == 'wlan0':
-                return parts[0]
+                return parts[0].strip()
     except Exception as e:
         print(f"[!] Error getting current Wi-Fi: {e}")
     return None
 
-def scan_available_wifi():
+
+def scan_available_wifi() -> List[Dict]:
     """Scans and returns list of dicts: [{'in_use': bool, 'ssid': str, 'signal': int, 'security': str}]"""
     networks = []
     try:
-        ssh = _get_ssh()
-        # Rescan first
-        ssh.exec_command("sudo nmcli dev wifi rescan")
-        time.sleep(1.5)
-        stdin, stdout, stderr = ssh.exec_command("nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list")
-        out = stdout.read().decode('utf-8', errors='replace')
-        ssh.close()
-        
+        # Rescan first with sudo to refresh Wi-Fi cache
+        _exec_command("echo 1234 | sudo -S nmcli dev wifi rescan", timeout=8)
+        time.sleep(1.2)
+
+        ok, out, err = _exec_command("nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list", timeout=10)
         seen = set()
-        for line in out.strip().splitlines():
+        for line in out.splitlines():
             parts = line.split(':')
             if len(parts) >= 4:
                 in_use = (parts[0].strip() == '*')
@@ -84,15 +144,13 @@ def scan_available_wifi():
         print(f"[!] Error scanning Wi-Fi: {e}")
     return networks
 
-def list_saved_wifi():
+
+def list_saved_wifi() -> List[str]:
     """Returns list of saved Wi-Fi connection names."""
     saved = []
     try:
-        ssh = _get_ssh()
-        stdin, stdout, stderr = ssh.exec_command("nmcli -t -f NAME,TYPE connection show")
-        out = stdout.read().decode('utf-8', errors='replace')
-        ssh.close()
-        for line in out.strip().splitlines():
+        ok, out, _ = _exec_command("nmcli -t -f NAME,TYPE connection show", timeout=5)
+        for line in out.splitlines():
             parts = line.split(':')
             if len(parts) >= 2 and '802-11-wireless' in parts[1]:
                 name = parts[0].strip()
@@ -102,33 +160,31 @@ def list_saved_wifi():
         print(f"[!] Error listing saved Wi-Fi: {e}")
     return saved
 
-def add_wifi_network(ssid: str, password: str = ""):
+
+def add_wifi_network(ssid: str, password: str = "") -> Tuple[bool, str]:
     """Connects to and permanently saves a new Wi-Fi network on the Pi."""
     try:
-        ssh = _get_ssh()
         if password:
-            cmd = f'sudo nmcli dev wifi connect "{ssid}" password "{password}"'
+            cmd = f'echo 1234 | sudo -S nmcli dev wifi connect "{ssid}" password "{password}"'
         else:
-            cmd = f'sudo nmcli dev wifi connect "{ssid}"'
-        stdin, stdout, stderr = ssh.exec_command(cmd, timeout=25)
-        out = stdout.read().decode('utf-8', errors='replace')
-        err = stderr.read().decode('utf-8', errors='replace')
-        ssh.close()
-        success = ("successfully activated" in out.lower() or "connection successfully" in out.lower())
-        return success, out or err
+            cmd = f'echo 1234 | sudo -S nmcli dev wifi connect "{ssid}"'
+        ok, out, err = _exec_command(cmd, timeout=30)
+        combined = f"{out} {err}".strip()
+        success = ("successfully activated" in combined.lower() or "connection successfully" in combined.lower())
+        return success, combined or ("เชื่อมต่อสำเร็จ" if success else "ไม่สามารถเชื่อมต่อได้")
     except Exception as e:
         return False, str(e)
 
-def delete_saved_wifi(name: str):
+
+def delete_saved_wifi(name: str) -> Tuple[bool, str]:
     """Deletes a saved Wi-Fi profile from the Pi."""
     try:
-        ssh = _get_ssh()
-        stdin, stdout, stderr = ssh.exec_command(f'sudo nmcli connection delete "{name}"')
-        out = stdout.read().decode('utf-8', errors='replace')
-        ssh.close()
-        return True, out
+        cmd = f'echo 1234 | sudo -S nmcli connection delete "{name}"'
+        ok, out, err = _exec_command(cmd, timeout=10)
+        return ok, out or err
     except Exception as e:
         return False, str(e)
+
 
 def interactive_menu():
     if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -137,11 +193,11 @@ def interactive_menu():
         except Exception:
             pass
 
-    target_ip = get_pi_ip()
+    target_ip = get_pi_ip() if not is_running_on_pi() else "localhost (Native Pi)"
     print("=" * 65)
     print("   📶 RASPBERRY PI WI-FI NETWORK MANAGER")
     print("   เครื่องมือจัดการและบันทึก Wi-Fi ล่วงหน้าก่อนย้ายสถานที่")
-    print(f"   บอร์ดเป้าหมาย: {target_ip} (raspberrypi.local)")
+    print(f"   บอร์ดเป้าหมาย: {target_ip}")
     print("=" * 65)
 
     current = get_current_wifi()
@@ -217,10 +273,11 @@ def interactive_menu():
         print("    - หรือใส่ชื่อและรหัสผ่านของ 'Personal Hotspot มือถือ' ของคุณไว้")
         print(" 2. หากไปถึงที่ใหม่แล้วไม่ได้เพิ่มไว้ล่วงหน้า:")
         print("    - เปิด Hotspot ในมือถือ โดยตั้งชื่อ Wi-Fi (SSID) ให้ตรงกับชื่อ Wi-Fi เดิม")
-        print("      (เช่น TECHNICCOM) บอร์ด Pi จะต่อเข้า Hotspot ของคุณทันที!")
+        print("      (เช่น znine) บอร์ด Pi จะต่อเข้า Hotspot ของคุณทันที!")
         print("    - หรือเสียบสาย LAN เข้ากับเราเตอร์ของบ้านใหม่ จากนั้นเปิดเว็บพอร์ทัลเพื่อตั้งค่า Wi-Fi")
         print(" 3. สคริปต์ทั้งหมดค้นหาบอร์ดผ่าน 'raspberrypi.local' อัตโนมัติ")
         print("    ไม่ว่าเราเตอร์ที่ใหม่จะจ่าย IP อะไร คอมพิวเตอร์จะมองเห็นบอร์ดเสมอ!")
+
 
 if __name__ == "__main__":
     interactive_menu()
