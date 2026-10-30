@@ -15,35 +15,31 @@ export function renderHeader() {
 
   container.innerHTML = `
     <header class="glass-nav sticky top-0 z-40 border-b border-slate-200/50 shadow-xs">
-      <div class="max-w-5xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-3">
-        <!-- Brand / Identity -->
-        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 shrink">
+      <div class="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <!-- Brand / Identity & Live IP Pill (Always Visible, Never Shrinks or Overlaps) -->
+        <div class="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-xs shrink-0">
             💊
           </div>
-          <div class="min-w-0">
-            <h1 class="text-sm sm:text-lg font-bold text-slate-800 leading-tight truncate">
-              เครื่องเตือนทานยา
-            </h1>
-            <p class="text-[11px] text-slate-500 truncate hidden lg:block">
+          <div class="shrink-0">
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm sm:text-base lg:text-lg font-bold text-slate-800 leading-tight whitespace-nowrap">
+                เครื่องเตือนทานยา
+              </h1>
+              <!-- Live IP Connection Badge (Integrated cleanly with Brand, never duplicates) -->
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-mono font-medium text-slate-600 border border-slate-200/80 shrink-0" title="ไอพีของเครื่องเตือนยา">
+                <span class="glowing-dot ${hasPi ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
+                <span>${displayIp}</span>
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 hidden xl:block">
               ระบบดูแลและเตือนการรับประทานยาประจำบ้าน
             </p>
-          </div>
-          <!-- Compact IP Pill on Mobile -->
-          <div class="inline-flex md:hidden items-center gap-1.5 px-2 py-1 rounded-full bg-slate-100/90 text-[10px] font-mono text-slate-700 shrink-0 border border-slate-200/60">
-            <span class="glowing-dot ${hasPi ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
-            <span>${displayIp}</span>
           </div>
         </div>
 
         <!-- Desktop Action Toolbar (md:flex) -->
         <div class="hidden md:flex items-center gap-1.5 lg:gap-2 shrink-0">
-          <!-- Live Pi Connection Pill -->
-          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-xs font-medium text-slate-700 border border-slate-200/60">
-            <span class="glowing-dot ${hasPi ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
-            <span>${hasPi ? `เครื่องเตือนยา: ${serverInfo.pi_ip}` : 'กำลังค้นหาเครื่องเตือนยา...'}</span>
-          </div>
-
           <!-- Demo Simulation Button (Purple) -->
           <button id="btn-open-demo" class="apple-button px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-purple-200/80 shadow-xs" title="เปิดโหมดจำลองสถานการณ์สำหรับสาธิตให้กรรมการดู">
             <span>🎭</span>
@@ -68,22 +64,20 @@ export function renderHeader() {
             <span>Wi-Fi</span>
           </button>
 
-          <!-- Mobile QR Code Button -->
-          <button id="btn-open-qr" class="apple-button px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1" title="เปิด QR Code สแกนเข้ามือถือ">
-            <span>📱</span>
-            <span class="hidden xl:inline">สแกนมือถือ</span>
-          </button>
-
-          <!-- PWA Shortcut Button -->
-          <button id="btn-open-shortcut" class="apple-button px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1" title="เพิ่มแอปนี้ลงหน้าจอโฮมมือถือ">
-            <span>📲</span>
-            <span class="hidden xl:inline">บันทึกหน้าโฮม</span>
-          </button>
-
           <!-- Safe Shutdown Button -->
           <button id="btn-shutdown-pi" class="apple-button px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs sm:text-sm flex items-center gap-1 border border-rose-200/60" title="ปิดเครื่อง Raspberry Pi อย่างปลอดภัย (Safe Shutdown)">
             <span>🔌</span>
             <span>ปิดเครื่อง</span>
+          </button>
+
+          <!-- Mobile QR Code Button -->
+          <button id="btn-open-qr" class="apple-button p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center justify-center rounded-xl" title="เปิด QR Code สแกนเข้ามือถือ">
+            <span>📱</span>
+          </button>
+
+          <!-- PWA Shortcut Button -->
+          <button id="btn-open-shortcut" class="apple-button p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center justify-center rounded-xl" title="เพิ่มแอปนี้ลงหน้าจอโฮมมือถือ">
+            <span>📲</span>
           </button>
         </div>
 
