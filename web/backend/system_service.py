@@ -100,7 +100,12 @@ def get_system_volume() -> int:
 def set_system_volume(percent: int) -> Tuple[bool, str]:
     """Sets system PCM volume (0-100%)."""
     val = max(0, min(100, int(percent)))
-    cmd = f"amixer set PCM {val}%"
+    cmd = (
+        f"amixer -c Headphones sset PCM {val}% unmute 2>/dev/null; "
+        f"amixer -c 2 sset PCM {val}% unmute 2>/dev/null; "
+        f"amixer sset PCM {val}% unmute 2>/dev/null; "
+        f"sudo alsactl store 2>/dev/null"
+    )
     ok, out = _exec_pi_cmd(cmd, timeout=5)
     return (ok, f"ตั้งค่าระดับเสียงเป็น {val}% เรียบร้อย")
 

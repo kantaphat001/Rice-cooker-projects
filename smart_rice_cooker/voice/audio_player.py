@@ -36,11 +36,20 @@ class AudioPlayer:
                 logger.info("[AudioPlayer] Using Pygame audio engine on Windows.")
             except Exception as e:
                 logger.warning(f"[AudioPlayer] Pygame init failed: {e}. Audio will be simulated.")
+        else:
+            # Self-healing Linux ALSA: automatically unmute and set hardware headphone volume to 100% (+4dB)
+            try:
+                subprocess.run(["amixer", "-c", "Headphones", "sset", "PCM", "100%", "unmute"], capture_output=True, check=False)
+                subprocess.run(["amixer", "-c", "2", "sset", "PCM", "100%", "unmute"], capture_output=True, check=False)
+                subprocess.run(["amixer", "sset", "PCM", "100%", "unmute"], capture_output=True, check=False)
+            except Exception as e:
+                logger.debug(f"[AudioPlayer] ALSA hardware unmute warning: {e}")
 
     def _play_file_raw(self, path: str):
         if self._is_mpg123:
             # -b 2048: 2MB RAM read-ahead buffer prevents ALSA buffer underrun and eliminates audio stuttering
-            subprocess.run(["mpg123", "-b", "2048", "-q", path], check=False)
+            # -o alsa -a default: directly route to ALSA without PulseAudio probe delay
+            subprocess.run(["mpg123", "-b", "2048", "-o", "alsa", "-a", "default", "-q", path], check=False)
         elif self._is_pygame:
             try:
                 import pygame
