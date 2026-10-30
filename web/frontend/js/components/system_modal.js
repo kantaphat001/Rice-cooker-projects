@@ -7,7 +7,6 @@ import {
   syncSystemTime,
   fetchSystemVolume,
   setSystemVolume,
-  testPiSound,
   testTelegram
 } from '../api.js';
 
@@ -75,10 +74,6 @@ export function setupSystemModal() {
             <input type="range" id="input-volume-slider" min="0" max="100" value="80" class="w-full accent-emerald-600 cursor-pointer">
           </div>
 
-          <button id="btn-test-sound" class="apple-button w-full py-2 bg-slate-200/80 hover:bg-slate-300/80 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5">
-            <span>🔊</span>
-            <span>ทดสอบเปิดเสียงลำโพงที่กล่อง</span>
-          </button>
         </div>
 
         <!-- Section 3: Telegram Notification Status -->
@@ -110,7 +105,6 @@ export function setupSystemModal() {
   const syncTimeBtn = document.getElementById('btn-sync-time');
   const volumeSlider = document.getElementById('input-volume-slider');
   const volumeLabel = document.getElementById('label-volume-val');
-  const testSoundBtn = document.getElementById('btn-test-sound');
   const testTelegramBtn = document.getElementById('btn-test-telegram');
   const timeDisplay = document.getElementById('current-browser-time');
 
@@ -149,15 +143,6 @@ export function setupSystemModal() {
     volumeDebounce = setTimeout(async () => {
       await setSystemVolume(val);
     }, 300);
-  });
-
-  // Test Sound Click
-  testSoundBtn.addEventListener('click', async () => {
-    testSoundBtn.disabled = true;
-    testSoundBtn.textContent = '⏳ กำลังเล่นเสียง...';
-    await testPiSound();
-    testSoundBtn.disabled = false;
-    testSoundBtn.innerHTML = '<span>🔊</span><span>ทดสอบเปิดเสียงลำโพงที่กล่อง</span>';
   });
 
   // Test Telegram Click
