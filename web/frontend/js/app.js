@@ -5,7 +5,7 @@
 
 import { store } from './state.js';
 import { fetchConfig } from './api.js';
-import { renderHeader } from './components/header.js';
+import { renderHeader } from './components/header.js?v=20261030_v3';
 import { renderMemberBar } from './components/member_bar.js';
 import { renderScheduleBoard } from './components/schedule_board.js';
 import { setupMedModal, openAddMedModal } from './components/med_modal.js';

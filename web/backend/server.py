@@ -82,6 +82,8 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             self.send_header('Cache-Control', f'public, max-age={cache_seconds}')
         else:
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
         self.end_headers()
         self.wfile.write(content)
 
@@ -252,7 +254,7 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             try:
                 with open(target_static, 'rb') as f:
                     content = f.read()
-                self._send_bytes(content, mime, cache_seconds=3600 if ext != '.html' else 0)
+                self._send_bytes(content, mime, cache_seconds=0)
                 return
             except Exception:
                 pass
