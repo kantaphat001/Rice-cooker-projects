@@ -51,14 +51,16 @@ def pause_service_if_active(ssh):
     status = stdout.read().decode('utf-8', errors='replace').strip()
     if status == "active":
         print("[*] กำลังหยุด smart-cooker.service ชั่วคราวเพื่อปลดล็อก GPIO & อุปกรณ์ฮาร์ดแวร์...")
-        ssh.exec_command("sudo systemctl stop smart-cooker.service")
+        _in, _out, _err = ssh.exec_command("sudo systemctl stop smart-cooker.service")
+        _out.channel.recv_exit_status()
         time.sleep(1.0)
         return True
     return False
 
 def resume_service(ssh):
     print("[*] กำลังเปิด smart-cooker.service คืนค่าเดิม...")
-    ssh.exec_command("sudo systemctl start smart-cooker.service")
+    _in, _out, _err = ssh.exec_command("sudo systemctl start smart-cooker.service")
+    _out.channel.recv_exit_status()
 
 def main():
     print("=" * 70)
