@@ -78,9 +78,16 @@ COOLDOWN_PERSON_MINUTES = 20
 FRIENDLY_GREETING_COOLDOWN_SEC = 60.0    # 1 min anti-spam cooldown for friendly non-med greetings (prevents muting)
 NEXT_MEAL_CUTOFF_MINUTES = 60            # Overdose protection: If <60m to next meal, skip catchup
 ENABLE_MISSED_MEAL_CATCHUP = False       # If missed, skip reminder as requested (no nagging/overdose)
+AUTO_ACKNOWLEDGE_ON_REMIND = True        # Zero-Touch Elder Mode: automatically mark acknowledged after reminder announcement
 
 # Medication and State Persistence Files
 CONFIG_FILE = BASE_DIR / "med_config.json"
 EXAMPLE_CONFIG_FILE = BASE_DIR / "med_config.example.json"
 RAM_STATE_FILE = Path("/dev/shm/smart_cooker_state.json")
 PERSISTENT_STATE_FILE = BASE_DIR / "adherence_state.json"
+DEMO_TRIGGER_FILE = Path("/dev/shm/demo_trigger.json")
+
+# Telegram Bot Integration
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8985672511:AAFvRbySDdK8GiTRGX18esszR5xzVD6E92A")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "-1004315258257")
+TELEGRAM_ENABLED = True

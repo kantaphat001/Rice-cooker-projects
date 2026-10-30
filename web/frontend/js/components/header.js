@@ -38,6 +38,24 @@ export function renderHeader() {
             <span>${hasPi ? `เครื่องเตือนยา: ${serverInfo.pi_ip}` : 'กำลังค้นหาเครื่องเตือนยา...'}</span>
           </div>
 
+          <!-- Demo Simulation Button (Purple) -->
+          <button id="btn-open-demo" class="apple-button px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-xs sm:text-sm font-semibold flex items-center gap-1.5 border border-purple-200/60 shadow-xs" title="เปิดโหมดจำลองสถานการณ์สำหรับสาธิตให้กรรมการดู">
+            <span>🎭</span>
+            <span class="inline">โหมดสาธิต</span>
+          </button>
+
+          <!-- Medication History Button -->
+          <button id="btn-open-history" class="apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="ดูประวัติการทานยาย้อนหลัง">
+            <span>📋</span>
+            <span class="hidden sm:inline">ประวัติ</span>
+          </button>
+
+          <!-- System & Speaker Settings Button -->
+          <button id="btn-open-system" class="apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="ซิงค์เวลาและปรับเสียงลำโพง">
+            <span>⚙️</span>
+            <span class="hidden sm:inline">ระบบ</span>
+          </button>
+
           <!-- Wi-Fi Manager Button -->
           <button id="btn-open-wifi" class="apple-button px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm flex items-center gap-1.5" title="ตั้งค่า Wi-Fi เครื่องเตือนยา">
             <span>📶</span>

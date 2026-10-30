@@ -15,6 +15,7 @@ import logging
 import threading
 import gc
 from typing import Optional, Tuple, Dict
+from pathlib import Path
 
 from .config import settings
 from .core.state_machine import CompanionStateMachine, SystemState
@@ -109,6 +110,9 @@ class CompanionService:
 
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
+
+        # Start Demo Trigger Watchdog Thread (for web portal simulation)
+        threading.Thread(target=self._demo_trigger_watchdog, daemon=True, name="DemoTriggerWatchdog").start()
 
         # Set Initial State (Red LED ON)
         self.fsm.transition_to(SystemState.STANDBY)
@@ -319,6 +323,13 @@ class CompanionService:
             logger.info(f"[Service] Auto-acknowledged {slot_key} for {member_id} (Zero-Touch Elder Mode).")
             self.tracker.record_acknowledgement(member_id, slot_key)
 
+        # Send Telegram alert asynchronously
+        try:
+            from .notifications.telegram_notifier import send_medication_alert
+            send_medication_alert(display_name, slot_label, before_meds, after_meds)
+        except Exception as e:
+            logger.warning(f"[Service] Telegram alert error: {e}")
+
         self._speak_and_finish(msg, has_meds=True)
 
     def _handle_off_schedule_member(self, member_id: str, display_name: str, greeting: str):
@@ -447,3 +458,89 @@ class CompanionService:
         if self.button:
             self.button.close()
         self.leds.close()
+
+    def _demo_trigger_watchdog(self):
+        """Watches for simulation commands from Web Portal (Demo Mode)."""
+        import json
+        demo_file = getattr(settings, "DEMO_TRIGGER_FILE", Path("/dev/shm/demo_trigger.json"))
+        logger.info(f"[Service] Demo simulation watchdog active on {demo_file}...")
+        while self._running:
+            try:
+                if demo_file.is_file():
+                    with open(demo_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    try:
+                        demo_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+                    scenario = data.get("scenario", "normal_meal")
+                    member_id = data.get("member_id", "grandpa")
+                    logger.info(f"[Service] 🎭 Executing DEMO simulation: scenario={scenario}, member={member_id}")
+                    self._execute_demo_simulation(scenario, member_id)
+            except Exception as e:
+                logger.error(f"[Service] Demo trigger error: {e}")
+            time.sleep(0.3)
+
+    def _execute_demo_simulation(self, scenario: str, member_id: str):
+        """Simulates complete hardware and speech pipeline for judges."""
+        self.fsm.transition_to(SystemState.DETECTING)
+        time.sleep(0.8)
+
+        member_info = self.repo.get_member(member_id) or {}
+        display_name = member_info.get("display_name", member_id)
+        greeting = member_info.get("voice_greeting", f"สวัสดีค่ะ{display_name}")
+
+        if scenario == "normal_meal":
+            schedules = member_info.get("schedules", {})
+            slot_key = "morning" if "morning" in schedules else (list(schedules.keys())[0] if schedules else "morning")
+            slot_data = schedules.get(slot_key, {})
+            slot_label = slot_data.get("label", "มื้อเช้า")
+            before_meds = slot_data.get("before_meal", [])
+            after_meds = slot_data.get("after_meal", [])
+            all_meds = before_meds + after_meds
+
+            msg = ThaiPhraseBuilder.build_full_meal_announcement(greeting, slot_label, before_meds, after_meds)
+            if self.gui:
+                self.gui.update_medication_display(display_name, slot_label, all_meds)
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
+            self.tracker.record_reminder(member_id, slot_key)
+            self.tracker.record_acknowledgement(member_id, slot_key)
+
+            try:
+                from .notifications.telegram_notifier import send_medication_alert
+                send_medication_alert(display_name, slot_label, before_meds, after_meds)
+            except Exception as e:
+                logger.warning(f"[Demo] Telegram error: {e}")
+
+            self._speak_and_finish(msg, has_meds=True)
+
+        elif scenario == "already_taken":
+            msg = ThaiPhraseBuilder.build_already_taken_message(display_name)
+            if self.gui:
+                self.gui.show_already_taken(display_name)
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
+            self._speak_and_finish(msg, has_meds=False)
+
+        elif scenario == "unknown":
+            msg = ThaiPhraseBuilder.build_unknown_visitor_message()
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
+            self._speak_and_finish(msg, has_meds=False)
+
+        elif scenario == "off_schedule":
+            schedules = member_info.get("schedules", {})
+            slot_key = "noon" if "noon" in schedules else (list(schedules.keys())[0] if schedules else "noon")
+            slot_data = schedules.get(slot_key, {})
+            slot_label = slot_data.get("label", "มื้อกลางวัน")
+            slot_time = slot_data.get("start_time", "11:30")
+            before_meds = slot_data.get("before_meal", [])
+            after_meds = slot_data.get("after_meal", [])
+            all_meds = before_meds + after_meds
+
+            msg = ThaiPhraseBuilder.build_off_schedule_upcoming_reminder(
+                greeting, slot_label, slot_time, before_meds, after_meds
+            )
+            if self.gui:
+                self.gui.update_medication_display(display_name, f"มื้อถัดไป: {slot_label}", all_meds)
+            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
+            self._speak_and_finish(msg, has_meds=False)

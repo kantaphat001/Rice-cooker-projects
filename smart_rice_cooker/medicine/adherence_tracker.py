@@ -174,3 +174,10 @@ class AdherenceTracker:
                 }
                 self._save_state(to_disk=True)
                 logger.info(f"[Tracker] Reset adherence state for {member_id} ({slot_key}).")
+
+    def clear_all_records(self):
+        """Clears all adherence records across all members for fresh demonstration/testing."""
+        today_str = str(date.today())
+        self._state = {"date": today_str, "records": {}}
+        self._save_state(to_disk=True)
+        logger.info("[Tracker] 🗑️ Cleared all adherence records successfully.")

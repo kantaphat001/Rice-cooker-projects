@@ -263,3 +263,115 @@ export async function resetSlotAdherence(memberId, slotKey) {
   }
   return null;
 }
+
+// --- System & Hardware Controls ---
+
+export async function syncSystemTime(timeStr) {
+  try {
+    const res = await fetch('/api/system/sync_time', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ time_str: timeStr })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'ซิงค์เวลากับเครื่องเรียบร้อยแล้ว', 'success');
+      return true;
+    }
+    throw new Error(data.message || 'ไม่สามารถซิงค์เวลาได้');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function fetchSystemVolume() {
+  try {
+    const res = await fetch('/api/system/volume');
+    const data = await res.json();
+    return data.volume || 80;
+  } catch (err) {
+    return 80;
+  }
+}
+
+export async function setSystemVolume(percent) {
+  try {
+    const res = await fetch('/api/system/volume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ volume: percent })
+    });
+    const data = await res.json();
+    return data.success;
+  } catch (err) {
+    return false;
+  }
+}
+
+export async function testPiSound() {
+  try {
+    const res = await fetch('/api/system/test_sound', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'ทดสอบเสียงลำโพงแล้ว', 'info');
+    return data.success;
+  } catch (err) {
+    showToast('ทดสอบเสียงล้มเหลว', 'error');
+    return false;
+  }
+}
+
+export async function testTelegram() {
+  try {
+    const res = await fetch('/api/system/test_telegram', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'ส่งข้อความทดสอบ Telegram แล้ว', 'success');
+    return data.success;
+  } catch (err) {
+    showToast('ส่งข้อความ Telegram ล้มเหลว', 'error');
+    return false;
+  }
+}
+
+export async function triggerDemoSimulation(scenario, memberId) {
+  try {
+    const res = await fetch('/api/demo/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario, member_id: memberId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'เริ่มจำลองสถานการณ์แล้ว', 'success');
+      return true;
+    }
+    throw new Error(data.message || 'จำลองสถานการณ์ไม่สำเร็จ');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}
+
+export async function fetchAdherenceHistory() {
+  try {
+    const res = await fetch('/api/adherence/history');
+    const data = await res.json();
+    return data.history || {};
+  } catch (err) {
+    return {};
+  }
+}
+
+export async function clearAdherenceHistory() {
+  try {
+    const res = await fetch('/api/adherence/clear', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('ล้างประวัติการทานยาเรียบร้อยแล้ว', 'info');
+      return true;
+    }
+  } catch (err) {
+    showToast('ล้างประวัติไม่สำเร็จ', 'error');
+  }
+  return false;
+}
