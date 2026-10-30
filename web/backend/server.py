@@ -31,7 +31,9 @@ from web.backend.system_service import (
     play_test_sound,
     trigger_demo_simulation,
     get_adherence_history,
-    clear_adherence_history
+    clear_adherence_history,
+    get_sensor_distance,
+    set_sensor_distance
 )
 from smart_rice_cooker.notifications.telegram_notifier import send_telegram_test
 from web.backend.asset_generator import (
@@ -187,6 +189,11 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "history": data})
             return
 
+        if path == '/api/system/sensor_distance':
+            data = get_sensor_distance()
+            self._send_json(data)
+            return
+
         if path == '/api/system/volume':
             vol = get_system_volume()
             self._send_json({"success": True, "volume": vol})
@@ -288,6 +295,12 @@ class MedPortalHandler(BaseHTTPRequestHandler):
                 time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             ok, msg = sync_system_time(time_str)
             self._send_json({'success': ok, 'message': msg})
+            return
+
+        if path == '/api/system/sensor_distance':
+            dist = req_data.get('distance_cm', 45.0)
+            ok, msg = set_sensor_distance(dist)
+            self._send_json({'success': ok, 'message': msg, 'distance_cm': dist})
             return
 
         if path == '/api/system/volume':

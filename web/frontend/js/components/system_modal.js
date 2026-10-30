@@ -1,12 +1,16 @@
 /**
- * system_modal.js - System Time & Telegram Notification Settings Sheet (2026 Edition)
+ * system_modal.js - System Time, Ultrasonic Sensor Distance & Telegram Settings Sheet (2026 Edition)
  * Zero-dependency hardware controls for Raspberry Pi.
  */
 
 import {
   syncSystemTime,
-  testTelegram
+  testTelegram,
+  fetchSensorDistance,
+  saveSensorDistance
 } from '../api.js';
+
+let liveDistanceTimer = null;
 
 export function setupSystemModal() {
   const container = document.getElementById('modal-system-container');
@@ -26,7 +30,7 @@ export function setupSystemModal() {
             </div>
             <div>
               <h3 class="text-lg font-bold text-slate-800">จัดการระบบเครื่องเตือนยา</h3>
-              <p class="text-xs text-slate-500">ซิงค์เวลากล่องกับมือถือ และทดสอบการแจ้งเตือน Telegram</p>
+              <p class="text-xs text-slate-500">ตั้งค่าระยะตรวจจับ, ซิงค์เวลา และแจ้งเตือน Telegram</p>
             </div>
           </div>
           <button id="btn-close-system-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
@@ -34,7 +38,65 @@ export function setupSystemModal() {
           </button>
         </div>
 
-        <!-- Section 1: Time Synchronization -->
+        <!-- Section 1: Ultrasonic Distance Configuration -->
+        <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-base">📏</span>
+              <div>
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">ระยะตรวจจับอัลตราโซนิก (HC-SR04)</h4>
+                <p class="text-[11px] text-slate-500">ระยะห่างที่เครื่องจะเริ่มตรวจจับคนและสแกนใบหน้า</p>
+              </div>
+            </div>
+            <div id="live-distance-badge" class="flex items-center gap-1 text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200/60 px-2.5 py-1 rounded-full transition-colors duration-200">
+              <span id="live-distance-dot">⚪</span>
+              <span id="live-distance-val">--</span>
+              <span>ซม.</span>
+            </div>
+          </div>
+
+          <!-- Slider & Current Target Display -->
+          <div class="space-y-2 pt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-600">ระยะเป้าหมายที่ต้องการให้ตรวจจับ:</span>
+              <span class="text-sm font-extrabold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-100">
+                <span id="distance-slider-display">45</span> ซม.
+              </span>
+            </div>
+            <input
+              id="slider-sensor-distance"
+              type="range"
+              min="20"
+              max="150"
+              step="5"
+              value="45"
+              class="w-full accent-amber-500 cursor-pointer h-2 bg-slate-200 rounded-lg"
+            />
+            <div class="flex justify-between text-[10px] text-slate-400 font-medium px-0.5">
+              <span>20 ซม. (ชิดกล่อง)</span>
+              <span>45 ซม. (มาตรฐาน)</span>
+              <span>80 ซม.</span>
+              <span>150 ซม. (ไกลสุด)</span>
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
+            <button type="button" class="btn-dist-preset px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 text-[11px] font-medium text-slate-700 transition" data-val="35">35 ซม.</button>
+            <button type="button" class="btn-dist-preset px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 text-[11px] font-medium text-slate-700 transition" data-val="45">45 ซม. (มาตรฐาน)</button>
+            <button type="button" class="btn-dist-preset px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 text-[11px] font-medium text-slate-700 transition" data-val="60">60 ซม.</button>
+            <button type="button" class="btn-dist-preset px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 text-[11px] font-medium text-slate-700 transition" data-val="80">80 ซม.</button>
+            <button type="button" class="btn-dist-preset px-2.5 py-1 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 text-[11px] font-medium text-slate-700 transition" data-val="100">100 ซม.</button>
+          </div>
+
+          <!-- Save Button -->
+          <button id="btn-save-distance" class="apple-button w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5">
+            <span>💾</span>
+            <span>บันทึกระยะตรวจจับ</span>
+          </button>
+        </div>
+
+        <!-- Section 2: Time Synchronization -->
         <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -55,7 +117,7 @@ export function setupSystemModal() {
           </button>
         </div>
 
-        <!-- Section 2: Telegram Notification Status -->
+        <!-- Section 3: Telegram Notification Status -->
         <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -84,9 +146,17 @@ export function setupSystemModal() {
   const syncTimeBtn = document.getElementById('btn-sync-time');
   const testTelegramBtn = document.getElementById('btn-test-telegram');
   const timeDisplay = document.getElementById('current-browser-time');
+  const distSlider = document.getElementById('slider-sensor-distance');
+  const distDisplay = document.getElementById('distance-slider-display');
+  const saveDistBtn = document.getElementById('btn-save-distance');
+  const presetBtns = document.querySelectorAll('.btn-dist-preset');
 
   function closeModal() {
     modal.classList.add('hidden');
+    if (liveDistanceTimer) {
+      clearInterval(liveDistanceTimer);
+      liveDistanceTimer = null;
+    }
   }
 
   backdrop.addEventListener('click', closeModal);
@@ -98,6 +168,36 @@ export function setupSystemModal() {
       timeDisplay.textContent = new Date().toLocaleTimeString('th-TH');
     }
   }, 1000);
+
+  // Distance Slider input listener
+  if (distSlider && distDisplay) {
+    distSlider.addEventListener('input', (e) => {
+      distDisplay.textContent = e.target.value;
+    });
+  }
+
+  // Preset buttons
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      if (distSlider && distDisplay) {
+        distSlider.value = val;
+        distDisplay.textContent = val;
+      }
+    });
+  });
+
+  // Save Distance
+  if (saveDistBtn && distSlider) {
+    saveDistBtn.addEventListener('click', async () => {
+      saveDistBtn.disabled = true;
+      saveDistBtn.textContent = '⏳ กำลังบันทึก...';
+      const val = parseFloat(distSlider.value);
+      await saveSensorDistance(val);
+      saveDistBtn.disabled = false;
+      saveDistBtn.innerHTML = '<span>💾</span><span>บันทึกระยะตรวจจับ</span>';
+    });
+  }
 
   // Sync Time Click
   syncTimeBtn.addEventListener('click', async () => {
@@ -125,4 +225,38 @@ export async function openSystemModal() {
   const modal = document.getElementById('modal-system');
   if (!modal) return;
   modal.classList.remove('hidden');
+
+  const distSlider = document.getElementById('slider-sensor-distance');
+  const distDisplay = document.getElementById('distance-slider-display');
+  const liveVal = document.getElementById('live-distance-val');
+  const liveBadge = document.getElementById('live-distance-badge');
+  const liveDot = document.getElementById('live-distance-dot');
+
+  // Initial fetch of configured threshold
+  const data = await fetchSensorDistance();
+  if (data && data.threshold_cm) {
+    if (distSlider) distSlider.value = data.threshold_cm;
+    if (distDisplay) distDisplay.textContent = data.threshold_cm;
+  }
+
+  // Poller for live distance while modal is active
+  async function pollLiveDistance() {
+    if (modal.classList.contains('hidden')) return;
+    const res = await fetchSensorDistance();
+    if (res && res.live_distance_cm !== undefined && liveVal) {
+      liveVal.textContent = res.live_distance_cm;
+      const threshold = distSlider ? parseFloat(distSlider.value) : (res.threshold_cm || 45.0);
+      if (res.live_distance_cm <= threshold) {
+        liveBadge.className = "flex items-center gap-1 text-[11px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 px-2.5 py-1 rounded-full transition-colors duration-200 shadow-xs";
+        liveDot.textContent = "🟢";
+      } else {
+        liveBadge.className = "flex items-center gap-1 text-[11px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-full transition-colors duration-200";
+        liveDot.textContent = "⚪";
+      }
+    }
+  }
+
+  pollLiveDistance();
+  if (liveDistanceTimer) clearInterval(liveDistanceTimer);
+  liveDistanceTimer = setInterval(pollLiveDistance, 1500);
 }

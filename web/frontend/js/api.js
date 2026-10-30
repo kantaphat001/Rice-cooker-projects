@@ -375,3 +375,33 @@ export async function clearAdherenceHistory() {
   }
   return false;
 }
+
+export async function fetchSensorDistance() {
+  try {
+    const res = await fetch('/api/system/sensor_distance');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('fetchSensorDistance error:', err);
+    return null;
+  }
+}
+
+export async function saveSensorDistance(distanceCm) {
+  try {
+    const res = await fetch('/api/system/sensor_distance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ distance_cm: distanceCm })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `บันทึกระยะตรวจจับ ${distanceCm} ซม. สำเร็จ`, 'success');
+      return true;
+    }
+    throw new Error(data.message || 'บันทึกระยะไม่สำเร็จ');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return false;
+  }
+}

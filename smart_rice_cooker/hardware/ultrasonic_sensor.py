@@ -12,6 +12,8 @@ Includes 2026 Production Hardening:
 """
 
 import time
+import json
+from pathlib import Path
 import threading
 import logging
 from collections import deque
@@ -181,6 +183,43 @@ class UltrasonicSensor:
             logger.debug(f"[Ultrasonic] 2-Stage Verification REJECTED: {median_dist:.1f} cm (Transient spike/steam ignored)")
             return False
 
+
+    def set_threshold_cm(self, cm: float):
+        """Dynamically updates distance trigger threshold in cm."""
+        val = max(15.0, min(200.0, float(cm)))
+        self.threshold_cm = val
+        logger.info(f"[Ultrasonic] 📏 Distance threshold updated to {val:.1f} cm")
+
+    def _check_shm_config(self):
+        """Checks if web manager sent a dynamic threshold update via /dev/shm/ultrasonic_config.json."""
+        try:
+            cfg_path = Path("/dev/shm/ultrasonic_config.json")
+            if cfg_path.is_file():
+                data = json.loads(cfg_path.read_text(encoding="utf-8"))
+                try:
+                    cfg_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                if "distance_trigger_cm" in data:
+                    self.set_threshold_cm(data["distance_trigger_cm"])
+        except Exception:
+            pass
+
+    def _publish_shm_state(self, dist: float, is_present: bool):
+        """Publishes live distance and threshold to RAM disk for Web Manager live monitoring."""
+        try:
+            shm_path = Path("/dev/shm/ultrasonic_distance.json")
+            payload = json.dumps({
+                "distance_cm": round(dist, 1),
+                "threshold_cm": round(self.threshold_cm, 1),
+                "is_person_present": bool(is_present),
+                "hardware_fault": bool(self.is_hardware_fault),
+                "timestamp": time.time()
+            })
+            shm_path.write_text(payload, encoding="utf-8")
+        except Exception:
+            pass
+
     def start_monitoring(self):
         self._running = True
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
@@ -204,16 +243,22 @@ class UltrasonicSensor:
 
     def _monitor_loop(self):
         while self._running:
+            self._check_shm_config()
+            dist = self.get_distance_cm()
+            is_present = (dist < self.threshold_cm)
+            self._publish_shm_state(dist, is_present)
+
             if self.eco_mode:
                 # ECO SNIFFER MODE: Sleep 1.2s between pulses, zero wear and tear
                 time.sleep(self.sniffer_interval_sec)
                 if not self._running:
                     break
 
-                if self.is_person_present():
+                if is_present:
                     # Initial ping triggered -> run 2-Stage Verification burst
                     if self._verify_presence_burst():
                         dist = self.get_distance_cm()
+                        self._publish_shm_state(dist, True)
                         if self.on_person_detected:
                             try:
                                 self.on_person_detected(dist)
@@ -222,13 +267,10 @@ class UltrasonicSensor:
                         time.sleep(2.0)
             else:
                 # ACTIVE REAL-TIME MODE: 10 Hz polling with hold-time
-                is_present = self.is_person_present()
-
                 if is_present:
                     if self._presence_start is None:
                         self._presence_start = time.time()
                     elif (time.time() - self._presence_start) >= self.hold_time_sec:
-                        dist = self.get_distance_cm()
                         logger.info(f"[Ultrasonic] Sustained presence detected (~{dist:.1f} cm, held {self.hold_time_sec}s)")
                         if self.on_person_detected:
                             try:

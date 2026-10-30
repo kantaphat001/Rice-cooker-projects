@@ -177,3 +177,106 @@ def clear_adherence_history() -> bool:
     except Exception as e:
         logger.error(f"[History] Error clearing history: {e}")
         return False
+
+def get_sensor_distance() -> Dict[str, Any]:
+    """
+    Returns current ultrasonic threshold and live distance measurement.
+    Reads from /dev/shm/ultrasonic_distance.json or med_config.json.
+    """
+    threshold_cm = 45.0
+    live_dist = 150.0
+    is_present = False
+    fault = False
+
+    # 1. Read configured threshold from med_config.json
+    try:
+        from web.backend.config_service import load_config
+        cfg = load_config()
+        sys_cfg = cfg.get("system_settings", {})
+        threshold_cm = float(sys_cfg.get("distance_trigger_cm", 45.0))
+    except Exception:
+        pass
+
+    # 2. Try to read live distance state from /dev/shm/ultrasonic_distance.json
+    shm_data = None
+    if is_running_on_pi():
+        shm_file = Path("/dev/shm/ultrasonic_distance.json")
+        if shm_file.is_file():
+            try:
+                shm_data = json.loads(shm_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+    else:
+        # Remote PC: read via SSH/SFTP
+        if PARAMIKO_AVAILABLE:
+            try:
+                ip = get_pi_ip()
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=3)
+                sftp = ssh.open_sftp()
+                try:
+                    with sftp.open("/dev/shm/ultrasonic_distance.json", "r") as f:
+                        shm_data = json.load(f)
+                except Exception:
+                    pass
+                sftp.close()
+                ssh.close()
+            except Exception:
+                pass
+
+    if shm_data and isinstance(shm_data, dict):
+        live_dist = shm_data.get("distance_cm", live_dist)
+        threshold_cm = shm_data.get("threshold_cm", threshold_cm)
+        is_present = shm_data.get("is_person_present", is_present)
+        fault = shm_data.get("hardware_fault", fault)
+
+    return {
+        "success": True,
+        "threshold_cm": round(threshold_cm, 1),
+        "live_distance_cm": round(live_dist, 1),
+        "is_person_present": is_present,
+        "hardware_fault": fault
+    }
+
+
+def set_sensor_distance(distance_cm: float) -> Tuple[bool, str]:
+    """
+    Sets ultrasonic detection threshold in cm (20-150 cm).
+    Persists to med_config.json and sends dynamic update to /dev/shm/ultrasonic_config.json.
+    """
+    try:
+        val = max(20.0, min(150.0, float(distance_cm)))
+        from web.backend.config_service import load_config, save_config
+        cfg = load_config()
+        if "system_settings" not in cfg:
+            cfg["system_settings"] = {}
+        cfg["system_settings"]["distance_trigger_cm"] = val
+        save_config(cfg)
+
+        # Notify running service immediately via /dev/shm/ultrasonic_config.json
+        payload = json.dumps({"distance_trigger_cm": val})
+        if is_running_on_pi():
+            try:
+                Path("/dev/shm/ultrasonic_config.json").write_text(payload, encoding="utf-8")
+            except Exception:
+                pass
+        else:
+            if PARAMIKO_AVAILABLE:
+                try:
+                    ip = get_pi_ip()
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=4)
+                    sftp = ssh.open_sftp()
+                    with sftp.open("/dev/shm/ultrasonic_config.json", "w") as f:
+                        f.write(payload)
+                    sftp.close()
+                    ssh.close()
+                except Exception:
+                    pass
+
+        return (True, f"ตั้งค่าระยะตรวจจับอัลตราโซนิกเป็น {val:.0f} ซม. เรียบร้อย")
+    except Exception as e:
+        return (False, f"เกิดข้อผิดพลาด: {str(e)}")
+

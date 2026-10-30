@@ -45,7 +45,11 @@ class CompanionService:
         self.event_bus = EventBus()
         self._running = False
 
-        # 1. Hardware Drivers
+        # 1. Medicine & Configuration (Loaded first to provide dynamic thresholds)
+        self.repo = MedicationRepository(settings.CONFIG_FILE, settings.EXAMPLE_CONFIG_FILE)
+        configured_distance = self.repo.get_distance_trigger_cm(settings.DISTANCE_TRIGGER_CM)
+
+        # 2. Hardware Drivers
         self.leds = LEDController(settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
         self.button = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=self._handle_button_press) if settings.PIN_BUTTON_ACK else None
         self.camera = CameraManager(
@@ -59,21 +63,18 @@ class CompanionService:
             echo_pin=settings.PIN_ULTRASONIC_ECHO,
             out_pin=settings.PIN_ULTRASONIC_OUT,
             model=settings.ULTRASONIC_MODEL,
-            threshold_cm=settings.DISTANCE_TRIGGER_CM,
+            threshold_cm=configured_distance,
             hold_time_sec=settings.ULTRASONIC_HOLD_TIME_SEC,
             sniffer_interval_sec=settings.ULTRASONIC_SNIFFER_INTERVAL_SEC,
             burst_samples=settings.ULTRASONIC_BURST_SAMPLES,
             on_person_detected=self._handle_person_detected
         )
 
-        # 2. Vision Models - Loaded ONCE in RAM, never reloaded on wake
+        # 3. Vision Models - Loaded ONCE in RAM, never reloaded on wake
         logger.info("[Service] Loading YuNet detector and SFace recognizer into RAM...")
         self.detector = YuNetDetector(settings.YUNET_MODEL_FILE, conf_threshold=settings.FACE_DETECTION_CONFIDENCE)
         self.recognizer = SFaceRecognizer(settings.SFACE_MODEL_FILE)
         self.face_db = FaceDatabase(settings.DATASET_DIR, self.detector, self.recognizer, settings.FACE_RECOGNITION_THRESHOLD)
-
-        # 3. Medicine & State
-        self.repo = MedicationRepository(settings.CONFIG_FILE, settings.EXAMPLE_CONFIG_FILE)
         self.scheduler = MedicationScheduler(self.repo)
         self.tracker = AdherenceTracker(settings.RAM_STATE_FILE, settings.PERSISTENT_STATE_FILE)
 
@@ -125,6 +126,14 @@ class CompanionService:
         """Monitors idle time and manages transitions to Eco-Sleep mode."""
         while self._running:
             time.sleep(5.0)
+            # Sync dynamic distance threshold if updated via web config
+            try:
+                cfg_dist = self.repo.get_distance_trigger_cm(settings.DISTANCE_TRIGGER_CM)
+                if abs(self.ultrasonic.threshold_cm - cfg_dist) > 0.5:
+                    self.ultrasonic.set_threshold_cm(cfg_dist)
+            except Exception:
+                pass
+
             if self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
                 idle_time = time.time() - self._last_activity_time
                 if idle_time >= settings.AUTO_SLEEP_TIMEOUT_SEC:

@@ -62,3 +62,15 @@ class MedicationRepository:
     def get_all_members(self) -> Dict[str, Any]:
         self._check_reload()
         return self._data.get("members", {})
+
+    def get_system_settings(self) -> Dict[str, Any]:
+        self._check_reload()
+        return self._data.get("system_settings", {})
+
+    def get_distance_trigger_cm(self, default: float = 45.0) -> float:
+        self._check_reload()
+        settings = self._data.get("system_settings", {})
+        try:
+            return float(settings.get("distance_trigger_cm", default))
+        except (ValueError, TypeError):
+            return default
