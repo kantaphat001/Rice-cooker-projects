@@ -1,12 +1,10 @@
 /**
- * system_modal.js - System Time, Speaker Volume & Telegram Settings Sheet (2026 Edition)
+ * system_modal.js - System Time & Telegram Notification Settings Sheet (2026 Edition)
  * Zero-dependency hardware controls for Raspberry Pi.
  */
 
 import {
   syncSystemTime,
-  fetchSystemVolume,
-  setSystemVolume,
   testTelegram
 } from '../api.js';
 
@@ -27,8 +25,8 @@ export function setupSystemModal() {
               ⚙️
             </div>
             <div>
-              <h3 class="text-lg font-bold text-slate-800">จัดการระบบและฮาร์ดแวร์</h3>
-              <p class="text-xs text-slate-500">ซิงค์เวลา, ปรับเสียงลำโพง, และทดสอบการแจ้งเตือน</p>
+              <h3 class="text-lg font-bold text-slate-800">จัดการระบบเครื่องเตือนยา</h3>
+              <p class="text-xs text-slate-500">ซิงค์เวลากล่องกับมือถือ และทดสอบการแจ้งเตือน Telegram</p>
             </div>
           </div>
           <button id="btn-close-system-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
@@ -57,26 +55,7 @@ export function setupSystemModal() {
           </button>
         </div>
 
-        <!-- Section 2: Speaker Volume Control -->
-        <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-base">🔊</span>
-              <div>
-                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">ระดับความดังลำโพงของกล่อง</h4>
-                <p class="text-[11px] text-slate-500">ปรับให้ได้ยินชัดเจนในสนามแข่งหรือในบ้าน</p>
-              </div>
-            </div>
-            <span id="label-volume-val" class="text-xs font-mono font-bold text-slate-800 bg-slate-200/60 px-2 py-0.5 rounded-md">80%</span>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <input type="range" id="input-volume-slider" min="0" max="100" value="80" class="w-full accent-emerald-600 cursor-pointer">
-          </div>
-
-        </div>
-
-        <!-- Section 3: Telegram Notification Status -->
+        <!-- Section 2: Telegram Notification Status -->
         <div class="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -103,8 +82,6 @@ export function setupSystemModal() {
   const backdrop = document.getElementById('modal-system-backdrop');
   const closeBtn = document.getElementById('btn-close-system-modal');
   const syncTimeBtn = document.getElementById('btn-sync-time');
-  const volumeSlider = document.getElementById('input-volume-slider');
-  const volumeLabel = document.getElementById('label-volume-val');
   const testTelegramBtn = document.getElementById('btn-test-telegram');
   const timeDisplay = document.getElementById('current-browser-time');
 
@@ -134,17 +111,6 @@ export function setupSystemModal() {
     syncTimeBtn.innerHTML = '<span>⚡</span><span>ซิงค์เวลากล่องตามเวลามือถือทันที</span>';
   });
 
-  // Volume Slider Change
-  let volumeDebounce = null;
-  volumeSlider.addEventListener('input', (e) => {
-    const val = e.target.value;
-    volumeLabel.textContent = `${val}%`;
-    clearTimeout(volumeDebounce);
-    volumeDebounce = setTimeout(async () => {
-      await setSystemVolume(val);
-    }, 300);
-  });
-
   // Test Telegram Click
   testTelegramBtn.addEventListener('click', async () => {
     testTelegramBtn.disabled = true;
@@ -159,11 +125,4 @@ export async function openSystemModal() {
   const modal = document.getElementById('modal-system');
   if (!modal) return;
   modal.classList.remove('hidden');
-
-  const volumeSlider = document.getElementById('input-volume-slider');
-  const volumeLabel = document.getElementById('label-volume-val');
-
-  const vol = await fetchSystemVolume();
-  if (volumeSlider) volumeSlider.value = vol;
-  if (volumeLabel) volumeLabel.textContent = `${vol}%`;
 }

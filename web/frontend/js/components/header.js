@@ -48,7 +48,7 @@ export function renderHeader() {
           </button>
 
           <!-- System & Speaker Settings Button -->
-          <button id="btn-open-system" class="apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap" title="ซิงค์เวลาและปรับเสียงลำโพง">
+          <button id="btn-open-system" class="apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap" title="ซิงค์เวลากล่องและทดสอบระบบ">
             <span>⚙️</span>
             <span>ระบบ</span>
           </button>
