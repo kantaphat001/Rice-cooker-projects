@@ -104,6 +104,9 @@ class CompanionService:
         if not self.camera_only:
             self.ultrasonic.start_monitoring()
 
+        # Smart Presence Watchdog (Camera failover with 45s anti-spam lock)
+        threading.Thread(target=self._camera_presence_watchdog, daemon=True, name="SmartPresenceWatchdog").start()
+
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
 
@@ -135,9 +138,47 @@ class CompanionService:
                     logger.info(f"[Service] Inactivity reached {idle_time:.0f}s >= {settings.AUTO_SLEEP_TIMEOUT_SEC}s. Entering Eco-Sleep.")
                     self.fsm.transition_to(SystemState.ECO_SLEEP)
 
+    def _camera_presence_watchdog(self):
+        """
+        Smart Backup Presence Trigger:
+        If ultrasonic is out of range or deflected, camera wakes the system
+        when a face is confirmed, protected by a strict 45-second anti-spam cooldown.
+        """
+        logger.info("[Service] Smart Presence Watchdog active (45s anti-spam lock)...")
+        consecutive_frames = 0
+        last_cam_trigger = 0.0
+
+        while self._running:
+            time.sleep(0.4)
+            if self.fsm.current_state not in (SystemState.STANDBY, SystemState.ECO_SLEEP) or self._is_announcing:
+                consecutive_frames = 0
+                continue
+
+            now = time.time()
+            if (now - last_cam_trigger) < 45.0 or (now - self._last_activity_time) < 3.0:
+                consecutive_frames = 0
+                continue
+
+            frame = self.camera.get_latest_frame()
+            if frame is not None and frame.size > 0:
+                faces = self.detector.detect(frame)
+                if faces is not None and len(faces) > 0:
+                    consecutive_frames += 1
+                    if consecutive_frames >= 2:
+                        logger.info("[Service] 👁️ Person confirmed in front of box! Triggering recognition.")
+                        last_cam_trigger = now
+                        consecutive_frames = 0
+                        self._handle_person_detected(distance_cm=45.0)
+                        time.sleep(2.0)
+                else:
+                    consecutive_frames = 0
+            else:
+                consecutive_frames = 0
+
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.ECO_SLEEP:
-            self.leds.all_off()
+            # Keep Red LED visible so user always knows the device has power and is ready
+            self.leds.set_standby()
             # Eco-Sleep: Keep camera in 1 FPS standby (cold sensor, zero heat, AE locked)
             # NEVER close V4L2 device so vision watchdog can instantly wake system when person arrives!
             self.camera.set_active_mode(False)
