@@ -100,14 +100,9 @@ class CompanionService:
         # Start Camera Warm-up (1 FPS standby)
         self.camera.start()
 
-        # Dual-Radar Presence Detection Architecture:
-        # 1. Ultrasonic Distance Sensor (Fast instant trigger if plugged in)
+        # Ultrasonic Distance Sensor presence trigger
         if not self.camera_only:
             self.ultrasonic.start_monitoring()
-
-        # 2. Camera Vision Watchdog (ALWAYS active in background, 1 FPS in Standby & Eco-Sleep)
-        # Guarantees the system will NEVER get trapped asleep if ultrasonic is deflected, disconnected, or no-echo
-        threading.Thread(target=self._camera_presence_loop, daemon=True, name="CamPresenceWatchdog").start()
 
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
@@ -139,33 +134,6 @@ class CompanionService:
                 if idle_time >= settings.AUTO_SLEEP_TIMEOUT_SEC:
                     logger.info(f"[Service] Inactivity reached {idle_time:.0f}s >= {settings.AUTO_SLEEP_TIMEOUT_SEC}s. Entering Eco-Sleep.")
                     self.fsm.transition_to(SystemState.ECO_SLEEP)
-
-    def _camera_presence_loop(self):
-        """Continuous presence watchdog via camera vision (Dual-Radar redundancy)."""
-        logger.info("[Service] Camera presence watchdog active (Dual-Radar mode)...")
-        while self._running:
-            if not self.camera._running:
-                time.sleep(0.5)
-                continue
-
-            if self.fsm.current_state in (SystemState.STANDBY, SystemState.ECO_SLEEP) and not self._is_announcing:
-                # Require at least 2.5s of steady Standby before re-triggering so Red LED is clearly visible and stable
-                if self.fsm.current_state == SystemState.STANDBY and (time.time() - self._last_activity_time) < 2.5:
-                    time.sleep(0.4)
-                    continue
-
-                poll_delay = 0.8 if self.fsm.current_state == SystemState.ECO_SLEEP else 0.4
-                frame = self.camera.get_latest_frame()
-                if frame is not None and frame.size > 0:
-                    faces = self.detector.detect(frame)
-                    if faces is not None and len(faces) > 0:
-                        logger.info("[Service] 👁️ Face visually detected in camera! Triggering pipeline.")
-                        self._handle_person_detected(distance_cm=50.0)
-                        time.sleep(2.0)
-                        continue
-                time.sleep(poll_delay)
-            else:
-                time.sleep(0.4)
 
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.ECO_SLEEP:

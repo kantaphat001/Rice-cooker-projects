@@ -1,49 +1,35 @@
 """
-ultrasonic_sensor.py - Multi-Sensor Ultrasonic Distance Driver
-Supports:
-1. US-016: Analog Ultrasonic Module
-   - Direct GPIO Proximity Mode (Reads OUT pin via Pi GPIO, VCC=3.3V, Range=GND)
-   - I2C ADC Mode (ADS1115 / PCF8591 if installed)
-2. HC-SR04 / US-015: Digital Pulse Timing (TRIG / ECHO) via gpiozero DistanceSensor
-Includes 2026 Production Hardening:
-- Low-power Sniffer Mode (1.2s pulse, 0 heat/wear)
-- 2-Stage Verification Debounce (rejects rice cooker steam, ghosts, and transient electrical spikes)
-- Strict Echo Timeout to prevent while-loop CPU hanging
+ultrasonic_sensor.py - High-Precision HC-SR04 Distance Driver (Hardened 2026 Edition)
+- Direct C-level timing via lgpio on Raspberry Pi 4 / 5 (Debian Bookworm/Trixie)
+- Clean fallback to gpiozero / mock mode on Windows development machines
+- Strictly rejects false 0cm echoes, electrical glitches, and out-of-range spikes
+- Publishes real-time telemetry to /dev/shm/ultrasonic_distance.json for Web Portal
 """
 
 import time
 import json
-from pathlib import Path
-import threading
 import logging
-from collections import deque
+import threading
 import statistics
+from collections import deque
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Check gpiozero availability
+# Check for native Linux lgpio
 try:
-    from gpiozero import DistanceSensor, DigitalInputDevice
+    import lgpio
+    LGPIO_AVAILABLE = True
+except (ImportError, Exception):
+    LGPIO_AVAILABLE = False
+
+# Fallback gpiozero
+try:
+    from gpiozero import DistanceSensor
     GPIOZERO_AVAILABLE = True
 except (ImportError, Exception):
     GPIOZERO_AVAILABLE = False
-    logger.warning("[Ultrasonic] gpiozero not available. Running in MOCK mode.")
-
-try:
-    import RPi.GPIO as RPI_GPIO
-    RPI_GPIO_AVAILABLE = True
-except Exception:
-    RPI_GPIO_AVAILABLE = False
-ADS1115_AVAILABLE = False
-try:
-    import board
-    import busio
-    import adafruit_ads1x15.ads1115 as ADS
-    from adafruit_ads1x15.analog_in import AnalogIn
-    ADS1115_AVAILABLE = True
-except Exception:
-    pass
 
 
 class UltrasonicSensor:
@@ -52,9 +38,9 @@ class UltrasonicSensor:
                  echo_pin: Optional[int] = 21,
                  out_pin: int = 21,
                  model: str = "HC-SR04",
-                 threshold_cm: float = 70.0,
+                 threshold_cm: float = 45.0,
                  hold_time_sec: float = 0.8,
-                 sniffer_interval_sec: float = 1.2,
+                 sniffer_interval_sec: float = 1.0,
                  burst_samples: int = 3,
                  on_person_detected=None):
         self.model = model.upper()
@@ -68,10 +54,6 @@ class UltrasonicSensor:
         self.on_person_detected = on_person_detected
 
         self._readings = deque(maxlen=5)
-        self._is_mock = not GPIOZERO_AVAILABLE
-        self._sensor = None
-        self._digital_input = None
-        self._adc_chan = None
         self._running = False
         self._thread = None
         self._presence_start = None
@@ -79,116 +61,110 @@ class UltrasonicSensor:
         self.is_hardware_fault = False
         self._fail_count = 0
 
-        if not self._is_mock:
-            self._init_hardware()
-
-    def _init_hardware(self):
-        # 1. Try US-016 Mode
-        if "016" in self.model:
-            if ADS1115_AVAILABLE:
-                try:
-                    i2c = busio.I2C(board.SCL, board.SDA)
-                    ads = ADS.ADS1115(i2c)
-                    self._adc_chan = AnalogIn(ads, ADS.P0)
-                    logger.info("[Ultrasonic] US-016 Initialized via ADS1115 ADC (I2C) on Channel A0")
-                    return
-                except Exception as e:
-                    logger.debug(f"[Ultrasonic] ADS1115 not detected: {e}. Falling back to Direct GPIO mode.")
-
-            # US-016 Direct GPIO Proximity Mode
-            try:
-                self._digital_input = DigitalInputDevice(self.out_pin, pull_up=True)
-                logger.info(f"[Ultrasonic] US-016 Direct GPIO Proximity Active on Pin GPIO {self.out_pin}")
-                return
-            except Exception as e:
-                logger.error(f"[Ultrasonic] Failed to initialize DigitalInputDevice for US-016: {e}")
-
-        # 2. HC-SR04 / Standard Pulse Mode via gpiozero DistanceSensor with strict timeout
-        if self.echo_pin is not None and self.trig_pin is not None:
-            try:
-                # max_distance=1.5 and queue_len=2 prevents multi-sample blocking lag on Bookworm
-                self._sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trig_pin, max_distance=1.5, queue_len=2, partial=True)
-                logger.info(f"[Ultrasonic] HC-SR04 Active (Trig: GPIO {self.trig_pin}, Echo: GPIO {self.echo_pin})")
-                return
-            except Exception as e:
-                logger.warning(f"[Ultrasonic] DistanceSensor init failed: {e}. Falling back to MOCK mode.")
-
+        # Hardware handles
+        self._lgpio_handle = None
+        self._gz_sensor = None
         self._is_mock = True
 
+        self._init_hardware()
+
+    def _init_hardware(self):
+        # 1. Preferred Native Driver: lgpio (Zero overhead, no background thread PWM conflict)
+        if LGPIO_AVAILABLE and self.trig_pin is not None and self.echo_pin is not None:
+            try:
+                self._lgpio_handle = lgpio.gpiochip_open(0)
+                lgpio.gpio_claim_output(self._lgpio_handle, self.trig_pin, 0)
+                lgpio.gpio_claim_input(self._lgpio_handle, self.echo_pin, lgpio.SET_PULL_DOWN)
+                self._is_mock = False
+                logger.info(f"[Ultrasonic] Native lgpio driver active (Trig=GPIO {self.trig_pin}, Echo=GPIO {self.echo_pin})")
+                return
+            except Exception as e:
+                logger.warning(f"[Ultrasonic] lgpio init failed: {e}. Trying gpiozero fallback.")
+                if self._lgpio_handle is not None:
+                    try:
+                        lgpio.gpiochip_close(self._lgpio_handle)
+                    except Exception:
+                        pass
+                    self._lgpio_handle = None
+
+        # 2. Secondary Driver: gpiozero DistanceSensor
+        if GPIOZERO_AVAILABLE and self.trig_pin is not None and self.echo_pin is not None:
+            try:
+                self._gz_sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trig_pin, max_distance=1.5, partial=True)
+                self._is_mock = False
+                logger.info(f"[Ultrasonic] gpiozero DistanceSensor active (Trig=GPIO {self.trig_pin}, Echo=GPIO {self.echo_pin})")
+                return
+            except Exception as e:
+                logger.warning(f"[Ultrasonic] gpiozero init failed: {e}. Running in MOCK mode.")
+
+        self._is_mock = True
+        logger.info("[Ultrasonic] Running in MOCK mode (simulated distance).")
+
     def set_eco_mode(self, enabled: bool):
-        """Switches between Active Real-time Monitoring and Eco Sniffer mode."""
         self.eco_mode = enabled
-        mode_str = "ECO SNIFFER (1.2s pulses, 0 heat)" if enabled else "ACTIVE REAL-TIME (10Hz)"
+        mode_str = "ECO SNIFFER (1.0s interval)" if enabled else "ACTIVE REAL-TIME (10Hz)"
         logger.info(f"[Ultrasonic] Mode changed -> {mode_str}")
 
-    def _read_direct_pulse(self) -> Optional[float]:
-        if not RPI_GPIO_AVAILABLE or self.trig_pin is None or self.echo_pin is None:
+    def _read_lgpio(self) -> Optional[float]:
+        if self._lgpio_handle is None:
             return None
         try:
-            RPI_GPIO.setmode(RPI_GPIO.BCM)
-            RPI_GPIO.setwarnings(False)
-            RPI_GPIO.setup(self.trig_pin, RPI_GPIO.OUT)
-            RPI_GPIO.setup(self.echo_pin, RPI_GPIO.IN)
+            h = self._lgpio_handle
 
-            RPI_GPIO.output(self.trig_pin, False)
-            time.sleep(0.000002)
+            # If echo pin is already high, wait up to 5ms for it to drop low
+            if lgpio.gpio_read(h, self.echo_pin) == 1:
+                t_wait = time.perf_counter() + 0.005
+                while lgpio.gpio_read(h, self.echo_pin) == 1:
+                    if time.perf_counter() > t_wait:
+                        return None
 
-            RPI_GPIO.output(self.trig_pin, True)
-            time.sleep(0.000010)
-            RPI_GPIO.output(self.trig_pin, False)
+            # Trigger pulse (12-15 us)
+            lgpio.gpio_write(h, self.trig_pin, 1)
+            time.sleep(0.000015)
+            lgpio.gpio_write(h, self.trig_pin, 0)
 
-            t0 = time.perf_counter()
-            timeout0 = t0 + 0.03
-            while RPI_GPIO.input(self.echo_pin) == 0:
-                t0 = time.perf_counter()
-                if t0 > timeout0:
+            # Wait for ECHO to rise (start of return pulse, max 15ms)
+            t_start = time.perf_counter()
+            t_timeout = t_start + 0.015
+            while lgpio.gpio_read(h, self.echo_pin) == 0:
+                t_start = time.perf_counter()
+                if t_start > t_timeout:
                     return None
 
-            t1 = t0
-            timeout1 = t0 + 0.03
-            while RPI_GPIO.input(self.echo_pin) == 1:
-                t1 = time.perf_counter()
-                if t1 > timeout1:
+            # Wait for ECHO to fall (end of pulse, max 25ms ~4.3m)
+            t_end = t_start
+            t_max = t_start + 0.025
+            while lgpio.gpio_read(h, self.echo_pin) == 1:
+                t_end = time.perf_counter()
+                if t_end > t_max:
                     return None
 
-            dist = ((t1 - t0) * 34300) / 2
-            return dist
+            duration = t_end - t_start
+            dist_cm = (duration * 34300.0) / 2.0
+            return dist_cm
         except Exception:
             return None
 
     def get_distance_cm(self) -> float:
-        """Returns median distance in centimeters."""
+        """Returns median distance in centimeters. Never returns 0cm on false triggers."""
         if self._is_mock:
             return 150.0
 
-        # Try high-precision direct polling first
-        direct_dist = self._read_direct_pulse()
-        if direct_dist is not None and 2.0 <= direct_dist <= 250.0:
-            self._readings.append(direct_dist)
-            self._fail_count = 0
-            self.is_hardware_fault = False
-            return statistics.median(self._readings)
-
-        # A. US-016 with ADC
-        if self._adc_chan is not None:
-            try:
-                volts = self._adc_chan.voltage
-                dist_cm = max(0.0, (volts / 3.3) * 100.0)
-                self._readings.append(dist_cm)
+        # 1. Read via native lgpio
+        if self._lgpio_handle is not None:
+            d = self._read_lgpio()
+            if d is not None and 4.0 <= d <= 150.0:
+                self._readings.append(d)
+                self._fail_count = 0
+                self.is_hardware_fault = False
                 return statistics.median(self._readings)
-            except Exception:
-                return 150.0
+            return 150.0
 
-        # B. US-016 Direct GPIO Proximity Mode
-        if self._digital_input is not None:
-            is_near = (self._digital_input.value == 0)
-            return 35.0 if is_near else 150.0
-
-        # C. HC-SR04 DistanceSensor with exception safety
-        if self._sensor is not None:
+        # 2. Read via gpiozero fallback
+        if self._gz_sensor is not None:
             try:
-                dist_cm = self._sensor.distance * 100.0
-                if 2.0 <= dist_cm <= 250.0:
+                dist_cm = self._gz_sensor.distance * 100.0
+                if 4.0 <= dist_cm <= 150.0:
                     self._readings.append(dist_cm)
                     self._fail_count = 0
                     self.is_hardware_fault = False
@@ -198,47 +174,23 @@ class UltrasonicSensor:
                 self._fail_count += 1
                 if self._fail_count >= 5:
                     self.is_hardware_fault = True
-                return 999.0
+                return 150.0
 
         return 150.0
 
     def is_person_present(self) -> bool:
-        """Helper to quickly check presence regardless of sensor type."""
+        """Returns True only when confirmed distance is strictly within threshold."""
         dist = self.get_distance_cm()
-        return dist < self.threshold_cm
-
-    def _verify_presence_burst(self) -> bool:
-        """
-        2-Stage Verification: Fires 3 rapid checks spaced 40ms apart.
-        Rejects steam clouds from the rice cooker, passing pets, or transient noise.
-        """
-        samples = []
-        for _ in range(self.burst_samples):
-            time.sleep(0.04)
-            d = self.get_distance_cm()
-            if d < 200.0:
-                samples.append(d)
-
-        if not samples:
-            return False
-
-        median_dist = statistics.median(samples)
-        if median_dist < self.threshold_cm:
-            logger.info(f"[Ultrasonic] 2-Stage Verification PASSED: {median_dist:.1f} cm (samples: {[round(s, 1) for s in samples]})")
-            return True
-        else:
-            logger.debug(f"[Ultrasonic] 2-Stage Verification REJECTED: {median_dist:.1f} cm (Transient spike/steam ignored)")
-            return False
-
+        return 4.0 <= dist < self.threshold_cm
 
     def set_threshold_cm(self, cm: float):
         """Dynamically updates distance trigger threshold in cm."""
-        val = max(15.0, min(200.0, float(cm)))
+        val = max(15.0, min(150.0, float(cm)))
         self.threshold_cm = val
         logger.info(f"[Ultrasonic] 📏 Distance threshold updated to {val:.1f} cm")
 
     def _check_shm_config(self):
-        """Checks if web manager sent a dynamic threshold update via /dev/shm/ultrasonic_config.json."""
+        """Checks if web manager sent a dynamic threshold update."""
         try:
             cfg_path = Path("/dev/shm/ultrasonic_config.json")
             if cfg_path.is_file():
@@ -253,7 +205,7 @@ class UltrasonicSensor:
             pass
 
     def _publish_shm_state(self, dist: float, is_present: bool):
-        """Publishes live distance and threshold to RAM disk for Web Manager live monitoring."""
+        """Publishes live distance and threshold to RAM disk for Web Manager."""
         try:
             shm_path = Path("/dev/shm/ultrasonic_distance.json")
             payload = json.dumps({
@@ -269,7 +221,7 @@ class UltrasonicSensor:
 
     def start_monitoring(self):
         self._running = True
-        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._thread = threading.Thread(target=self._monitor_loop, daemon=True, name="UltrasonicMonitor")
         self._thread.start()
         logger.info(f"[Ultrasonic] Background distance monitor started ({self.model}).")
 
@@ -277,56 +229,45 @@ class UltrasonicSensor:
         self._running = False
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
-        if self._sensor:
+        if self._lgpio_handle is not None:
             try:
-                self._sensor.close()
+                lgpio.gpio_free(self._lgpio_handle, self.trig_pin)
+                lgpio.gpio_free(self._lgpio_handle, self.echo_pin)
+                lgpio.gpiochip_close(self._lgpio_handle)
             except Exception:
                 pass
-        if self._digital_input:
+            self._lgpio_handle = None
+        if self._gz_sensor is not None:
             try:
-                self._digital_input.close()
+                self._gz_sensor.close()
             except Exception:
                 pass
+            self._gz_sensor = None
 
     def _monitor_loop(self):
         while self._running:
             self._check_shm_config()
             dist = self.get_distance_cm()
-            is_present = (dist < self.threshold_cm)
+            # Valid person presence requires distance strictly between 4.0cm and threshold_cm
+            is_present = (4.0 <= dist < self.threshold_cm)
             self._publish_shm_state(dist, is_present)
 
-            if self.eco_mode:
-                # ECO SNIFFER MODE: Sleep 1.2s between pulses, zero wear and tear
-                time.sleep(self.sniffer_interval_sec)
-                if not self._running:
-                    break
+            interval = self.sniffer_interval_sec if self.eco_mode else 0.1
 
-                if is_present:
-                    # Initial ping triggered -> run 2-Stage Verification burst
-                    if self._verify_presence_burst():
-                        dist = self.get_distance_cm()
-                        self._publish_shm_state(dist, True)
-                        if self.on_person_detected:
-                            try:
-                                self.on_person_detected(dist)
-                            except Exception as e:
-                                logger.error(f"[Ultrasonic] Sniffer callback error: {e}")
-                        time.sleep(2.0)
-            else:
-                # ACTIVE REAL-TIME MODE: 10 Hz polling with hold-time
-                if is_present:
-                    if self._presence_start is None:
-                        self._presence_start = time.time()
-                    elif (time.time() - self._presence_start) >= self.hold_time_sec:
-                        logger.info(f"[Ultrasonic] Sustained presence detected (~{dist:.1f} cm, held {self.hold_time_sec}s)")
-                        if self.on_person_detected:
-                            try:
-                                self.on_person_detected(dist)
-                            except Exception as e:
-                                logger.error(f"[Ultrasonic] Callback error: {e}")
-                        self._presence_start = None
-                        time.sleep(2.0)
-                else:
+            if is_present:
+                if self._presence_start is None:
+                    self._presence_start = time.time()
+                elif (time.time() - self._presence_start) >= self.hold_time_sec:
+                    logger.info(f"[Ultrasonic] Sustained presence detected (~{dist:.1f} cm, held {self.hold_time_sec}s)")
+                    if self.on_person_detected:
+                        try:
+                            self.on_person_detected(dist)
+                        except Exception as e:
+                            logger.error(f"[Ultrasonic] Callback error: {e}")
                     self._presence_start = None
+                    # Hold-off cooldown so the system doesn't re-trigger while announcement or detection is in progress
+                    time.sleep(2.0)
+            else:
+                self._presence_start = None
 
-                time.sleep(0.1)
+            time.sleep(interval)
