@@ -14,7 +14,6 @@ import { setupWifiModal, openWifiModal } from './components/wifi_modal.js';
 import { setupAuxiliaryModals, openQrModal, openShortcutModal, openAddMemberModal } from './components/shortcut_modal.js';
 import { setupDemoModal, openDemoModal } from './components/demo_modal.js';
 import { setupHistoryModal, openHistoryModal } from './components/history_modal.js';
-import { setupSystemModal, openSystemModal } from './components/system_modal.js';
 
 let deferredInstallPrompt = null;
 
@@ -35,10 +34,6 @@ function attachDynamicEventListeners() {
 
   const historyBtn = document.getElementById('btn-open-history');
   if (historyBtn) historyBtn.onclick = openHistoryModal;
-
-  const systemBtn = document.getElementById('btn-open-system');
-  if (systemBtn) systemBtn.onclick = openSystemModal;
-
   const wifiBtn = document.getElementById('btn-open-wifi');
   if (wifiBtn) wifiBtn.onclick = openWifiModal;
 
@@ -48,10 +43,6 @@ function attachDynamicEventListeners() {
 
   const navHistory = document.getElementById('nav-mobile-history');
   if (navHistory) navHistory.onclick = openHistoryModal;
-
-  const navSystem = document.getElementById('nav-mobile-system');
-  if (navSystem) navSystem.onclick = openSystemModal;
-
   const navWifi = document.getElementById('nav-mobile-wifi');
   if (navWifi) navWifi.onclick = openWifiModal;
 
@@ -204,7 +195,6 @@ function initApp() {
   setupAuxiliaryModals();
   setupDemoModal();
   setupHistoryModal();
-  setupSystemModal();
 
   // Fast-boot from inlined embedded data
   if (window.EMBEDDED_DATA && window.EMBEDDED_DATA.config) {
