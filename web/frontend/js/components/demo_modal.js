@@ -42,7 +42,7 @@ export function setupDemoModal() {
           <span class="text-[11px] text-purple-700 bg-purple-100/80 px-2.5 py-1 rounded-full font-medium">กรรมการดูผลสดที่กล่อง</span>
         </div>
 
-        <!-- 4 Scenarios Cards -->
+        <!-- Scenario Card -->
         <div class="space-y-2.5">
           <!-- Scenario 1: Normal Meal -->
           <div class="p-4 rounded-2xl bg-slate-50/80 hover:bg-emerald-50/60 border border-slate-100 transition flex items-start justify-between gap-3 group">
@@ -61,56 +61,6 @@ export function setupDemoModal() {
             </button>
           </div>
 
-          <!-- Scenario 2: Double Dosing Prevention -->
-          <div class="p-4 rounded-2xl bg-slate-50/80 hover:bg-amber-50/60 border border-slate-100 transition flex items-start justify-between gap-3 group">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-base">🛡️</span>
-                <span class="text-sm font-bold text-slate-800">2. ป้องกันทานยาซ้ำ (Safety Guard)</span>
-                <span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full">ความปลอดภัย</span>
-              </div>
-              <p class="text-xs text-slate-500 leading-relaxed">
-                จำลองเดินมาหน้ากล่องอีกครั้งหลังทานยาแล้ว: กล่องจะพูดเตือนทันทีว่า <i>"ทานยาเรียบร้อยแล้วค่ะ ไม่ต้องทานซ้ำนะคะ"</i>
-              </p>
-            </div>
-            <button data-scenario="already_taken" class="btn-run-scenario apple-button px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 shadow-xs">
-              ▶️ ทดสอบ
-            </button>
-          </div>
-
-          <!-- Scenario 3: Unknown Visitor -->
-          <div class="p-4 rounded-2xl bg-slate-50/80 hover:bg-sky-50/60 border border-slate-100 transition flex items-start justify-between gap-3 group">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-base">👤</span>
-                <span class="text-sm font-bold text-slate-800">3. ตรวจพบคนแปลกหน้า (Unknown)</span>
-                <span class="text-[10px] bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full">ความเป็นส่วนตัว</span>
-              </div>
-              <p class="text-xs text-slate-500 leading-relaxed">
-                จำลองแขกหรือคนแปลกหน้าเดินผ่าน: กล่องจะทักทายทั่วไปอย่างสุภาพ โดยไม่เปิดเผยข้อมูลยาของคนในบ้าน
-              </p>
-            </div>
-            <button data-scenario="unknown" class="btn-run-scenario apple-button px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 shadow-xs">
-              ▶️ ทดสอบ
-            </button>
-          </div>
-
-          <!-- Scenario 4: Off-Schedule Advance Reminder -->
-          <div class="p-4 rounded-2xl bg-slate-50/80 hover:bg-purple-50/60 border border-slate-100 transition flex items-start justify-between gap-3 group">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-base">⏰</span>
-                <span class="text-sm font-bold text-slate-800">4. เดินมานอกเวลามื้อยา</span>
-                <span class="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-full">แจ้งล่วงหน้า</span>
-              </div>
-              <p class="text-xs text-slate-500 leading-relaxed">
-                จำลองสมาชิกเดินมาช่วงที่ยังไม่ถึงเวลามื้อยา: กล่องจะทักทายและบอกเวลามื้อถัดไปและรายละเอียดยาล่วงหน้า
-              </p>
-            </div>
-            <button data-scenario="off_schedule" class="btn-run-scenario apple-button px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 shadow-xs">
-              ▶️ ทดสอบ
-            </button>
-          </div>
         </div>
 
         <div id="demo-status-banner" class="text-xs p-3 rounded-xl bg-purple-50 text-purple-800 font-medium hidden">
