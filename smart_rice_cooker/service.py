@@ -249,10 +249,21 @@ class CompanionService:
 
             logger.info(f"[Service] Recognition result: {member_id} ({confidence:.2f})")
 
+            # Match against registered members in med_config.json
+            matched_member = None
             if member_id and member_id != "unknown":
-                self._handle_recognized_member(member_id)
+                for k in self.repo.get_all_members().keys():
+                    if k.lower() == str(member_id).lower():
+                        matched_member = k
+                        break
+
+            if matched_member:
+                self._handle_recognized_member(matched_member)
             else:
-                self._handle_unknown_visitor()
+                # Passerby or unrecognized face -> Stay completely silent!
+                logger.info(f"[Service] Unrecognized person / passerby ({member_id}). Staying silent.")
+                self.fsm.transition_to(SystemState.STANDBY)
+                self._last_activity_time = time.time()
 
         except Exception as e:
             logger.error(f"[Service] Pipeline error: {e}")
@@ -273,11 +284,17 @@ class CompanionService:
         slot_key, slot_data = self.scheduler.get_current_slot_for_member(member_id)
 
         if not slot_key or not slot_data:
-            # OUTSIDE REGULAR MEAL TIMES
-            self._handle_off_schedule_member(member_id, display_name, greeting)
+            # OUTSIDE ACTIVE MEAL WINDOW -> Stay silent, wait for next scheduled meal
+            logger.info(f"[Service] {member_id} ({display_name}) detected outside active meal window. Waiting for next meal -> Staying silent.")
+            self.fsm.transition_to(SystemState.STANDBY)
             return
 
-        # INSIDE REGULAR MEAL TIME
+        # INSIDE ACTIVE MEAL WINDOW: If already reminded/acknowledged -> Repeated arrival -> Stay silent!
+        if self.tracker.is_acknowledged(member_id, slot_key):
+            logger.info(f"[Service] {member_id} ({display_name}) already received/taken medication for {slot_key}. Repeated arrival -> Staying silent.")
+            self.fsm.transition_to(SystemState.STANDBY)
+            return
+
         slot_label = slot_data.get("label", slot_key)
         before_meds = slot_data.get("before_meal", [])
         after_meds = slot_data.get("after_meal", [])
@@ -285,62 +302,18 @@ class CompanionService:
         self._active_member_slot = (member_id, slot_key)
 
         if not all_meds:
-            if getattr(settings, "ENABLE_MISSED_MEAL_CATCHUP", False):
-                missed_slot = self.scheduler.get_missed_earlier_slot(member_id, self.tracker)
-                if missed_slot:
-                    prev_key, prev_data = missed_slot
-                    prev_label = prev_data.get("label", prev_key)
-                    prev_before = prev_data.get("before_meal", [])
-                    prev_after = prev_data.get("after_meal", [])
-                    logger.info(f"[Service] Current slot {slot_key} has no meds, but missed earlier meal: {prev_label}")
-                    msg = ThaiPhraseBuilder.build_catchup_reminder(greeting, prev_label, prev_before, prev_after)
-                    all_prev = prev_before + prev_after
-                    if self.gui:
-                        self.gui.update_medication_display(display_name, f"ย้อนหลัง: {prev_label}", all_prev)
-                    self.fsm.transition_to(SystemState.ANNOUNCING, context={"has_meds": True})
-                    self._active_member_slot = (member_id, prev_key)
-                    self.tracker.record_reminder(member_id, prev_key)
-                    self._speak_and_finish(msg, has_meds=True)
-                    return
-
-            msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
-            self._speak_friendly_with_antispam(member_id, msg)
+            logger.info(f"[Service] {member_id} ({display_name}) has no medications prescribed for {slot_label}. Staying silent.")
+            self.fsm.transition_to(SystemState.STANDBY)
             return
 
-        # 1. Medical Safety Guard: Double-Dosing Hazard Prevention (Elderly UX Hardening)
-        # If the member has already taken/acknowledged medication for this slot, reassure them
-        # so they do NOT take a second dose by mistake.
-        if self.tracker.is_acknowledged(member_id, slot_key):
-            logger.info(f"[Service] {member_id} already acknowledged medication for {slot_key}. Preventing double-dose.")
-            msg = ThaiPhraseBuilder.build_already_taken_message(display_name)
-            if self.gui:
-                self.gui.show_already_taken(display_name)
-            self._speak_friendly_with_antispam(member_id, msg)
-            return
-
-        # 2. Check if reminded recently but not yet acknowledged (Manual Button Mode)
-        cooldown_min = getattr(settings, "COOLDOWN_PERSON_MINUTES", 20)
-        auto_ack = getattr(settings, "AUTO_ACKNOWLEDGE_ON_REMIND", False)
-        if not auto_ack and self.tracker.is_in_cooldown(member_id, slot_key, cooldown_min):
-            logger.info(f"[Service] {member_id} in cooldown window ({cooldown_min}m) for {slot_key}. Playing gentle follow-up.")
-            msg = ThaiPhraseBuilder.build_unacknowledged_followup(display_name)
-            if self.gui:
-                self.gui.update_medication_display(display_name, slot_label, all_meds)
-            self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
-            self._speak_and_finish(msg, has_meds=True)
-            return
-
-        # 3. Active meal window announcement (Full Medication Reminder)
+        # Active meal window announcement (First time arriving for this meal)
+        logger.info(f"[Service] 📢 First arrival for {slot_label}: Alerting {display_name} ({len(all_meds)} meds)...")
         msg = ThaiPhraseBuilder.build_full_meal_announcement(greeting, slot_label, before_meds, after_meds)
         if self.gui:
             self.gui.update_medication_display(display_name, slot_label, all_meds)
         self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
         self.tracker.record_reminder(member_id, slot_key)
-
-        # Hands-free elderly mode: automatically mark acknowledged after announcement
-        if auto_ack:
-            logger.info(f"[Service] Auto-acknowledged {slot_key} for {member_id} (Zero-Touch Elder Mode).")
-            self.tracker.record_acknowledgement(member_id, slot_key)
+        self.tracker.record_acknowledgement(member_id, slot_key)
 
         # Send Telegram alert asynchronously
         try:
