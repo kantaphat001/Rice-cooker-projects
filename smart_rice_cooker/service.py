@@ -105,7 +105,7 @@ class CompanionService:
             self.ultrasonic.start_monitoring()
 
         # Smart Presence Watchdog (Camera failover with 45s anti-spam lock)
-        threading.Thread(target=self._camera_presence_watchdog, daemon=True, name="SmartPresenceWatchdog").start()
+        # Presence triggered exclusively by ultrasonic hardware sensor (HC-SR04)
 
         # Start Inactivity Watchdog Thread (manages transition to ECO_SLEEP)
         threading.Thread(target=self._activity_watchdog_loop, daemon=True, name="EcoSleepWatchdog").start()
