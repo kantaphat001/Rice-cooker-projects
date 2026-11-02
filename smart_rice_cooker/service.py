@@ -177,8 +177,9 @@ class CompanionService:
 
     def _on_state_change(self, old_state: SystemState, new_state: SystemState, context: dict):
         if new_state == SystemState.ECO_SLEEP:
-            # Keep Red LED visible so user always knows the device has power and is ready
-            self.leds.set_standby()
+            # Visibly indicate power saving: turn off all LEDs
+            self.leds.all_off()
+            logger.info("[Service] 🌙 ECO-SLEEP ACTIVE: LEDs turned off to conserve power. Waiting for person to approach.")
             # Eco-Sleep: Keep camera in 1 FPS standby (cold sensor, zero heat, AE locked)
             # NEVER close V4L2 device so vision watchdog can instantly wake system when person arrives!
             self.camera.set_active_mode(False)
