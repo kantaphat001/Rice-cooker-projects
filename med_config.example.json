@@ -7,7 +7,7 @@
         "morning": {
           "label": "มื้อเช้า",
           "start_time": "06:00",
-          "end_time": "11:30",
+          "end_time": "12:00",
           "before_meal": [
             {
               "name": "ยารักษาโรคกระเพาะ",
@@ -30,8 +30,8 @@
         },
         "noon": {
           "label": "มื้อกลางวัน",
-          "start_time": "11:31",
-          "end_time": "14:30",
+          "start_time": "12:01",
+          "end_time": "15:00",
           "before_meal": [
             {
               "name": "ยาลดเบาหวาน",
@@ -49,8 +49,8 @@
         },
         "evening": {
           "label": "มื้อเย็น",
-          "start_time": "14:31",
-          "end_time": "20:00",
+          "start_time": "15:01",
+          "end_time": "19:00",
           "before_meal": [
             {
               "name": "ยาลดไข้",
@@ -68,8 +68,8 @@
         },
         "bedtime": {
           "label": "ก่อนนอน",
-          "start_time": "20:01",
-          "end_time": "22:30",
+          "start_time": "19:01",
+          "end_time": "23:59",
           "before_meal": [],
           "after_meal": [
             {
@@ -87,8 +87,8 @@
       "schedules": {
         "morning": {
           "label": "มื้อเช้า",
-          "start_time": "06:30",
-          "end_time": "12:00",
+          "start_time": "06:00",
+          "end_time": "14:00",
           "before_meal": [],
           "after_meal": [
             {
@@ -100,8 +100,8 @@
         },
         "evening": {
           "label": "มื้อเย็น",
-          "start_time": "17:30",
-          "end_time": "20:00",
+          "start_time": "14:01",
+          "end_time": "22:00",
           "before_meal": [],
           "after_meal": [
             {
@@ -119,15 +119,15 @@
       "schedules": {
         "morning": {
           "label": "มื้อเช้า",
-          "start_time": "06:30",
-          "end_time": "09:30",
+          "start_time": "06:00",
+          "end_time": "12:00",
           "before_meal": [],
           "after_meal": []
         },
         "noon": {
           "label": "มื้อกลางวัน",
-          "start_time": "11:30",
-          "end_time": "13:30",
+          "start_time": "12:01",
+          "end_time": "15:00",
           "before_meal": [],
           "after_meal": [
             {
@@ -139,15 +139,15 @@
         },
         "evening": {
           "label": "มื้อเย็น",
-          "start_time": "17:30",
-          "end_time": "20:00",
+          "start_time": "15:01",
+          "end_time": "19:00",
           "before_meal": [],
           "after_meal": []
         },
         "bedtime": {
           "label": "ก่อนนอน",
-          "start_time": "21:00",
-          "end_time": "22:30",
+          "start_time": "19:01",
+          "end_time": "23:59",
           "before_meal": [],
           "after_meal": []
         }
@@ -160,7 +160,7 @@
         "morning": {
           "label": "มื้อเช้า",
           "start_time": "06:00",
-          "end_time": "11:30",
+          "end_time": "12:00",
           "before_meal": [],
           "after_meal": [
             {
@@ -172,26 +172,53 @@
         },
         "noon": {
           "label": "มื้อกลางวัน",
-          "start_time": "11:31",
-          "end_time": "14:30",
+          "start_time": "12:01",
+          "end_time": "15:00",
           "before_meal": [],
-          "after_meal": []
+          "after_meal": [
+            {
+              "name": "วิตามินบำรุง",
+              "dosage": "1 เม็ด",
+              "color_tag": "ซองสีส้ม"
+            }
+          ]
         },
         "evening": {
           "label": "มื้อเย็น",
-          "start_time": "17:30",
-          "end_time": "20:00",
-          "before_meal": [],
-          "after_meal": []
+          "start_time": "15:01",
+          "end_time": "19:00",
+          "before_meal": [
+            {
+              "name": "ยาลดกรดในกระเพาะ",
+              "dosage": "1 เม็ด ก่อนอาหาร",
+              "color_tag": "ซองสีชมพู"
+            }
+          ],
+          "after_meal": [
+            {
+              "name": "ยาแก้แพ้",
+              "dosage": "1 เม็ด หลังอาหาร",
+              "color_tag": "ซองสีฟ้า"
+            }
+          ]
         },
         "bedtime": {
           "label": "ก่อนนอน",
-          "start_time": "21:00",
-          "end_time": "22:30",
+          "start_time": "19:01",
+          "end_time": "23:59",
           "before_meal": [],
-          "after_meal": []
+          "after_meal": [
+            {
+              "name": "ยานอนหลับ",
+              "dosage": "ครึ่งเม็ด",
+              "color_tag": "ซองสีม่วง"
+            }
+          ]
         }
       }
     }
+  },
+  "system_settings": {
+    "distance_trigger_cm": 55.0
   }
 }
