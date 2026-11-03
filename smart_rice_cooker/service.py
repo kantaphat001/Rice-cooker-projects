@@ -16,6 +16,7 @@ import threading
 import gc
 from typing import Optional, Tuple, Dict
 from pathlib import Path
+import numpy as np
 
 from .config import settings
 from .core.state_machine import CompanionStateMachine, SystemState
@@ -24,6 +25,7 @@ from .hardware.led_controller import LEDController
 from .hardware.ultrasonic_sensor import UltrasonicSensor
 from .hardware.button_manager import ButtonManager
 from .hardware.camera_manager import CameraManager
+from .hardware.fan_controller import FanController
 from .vision.yunet_detector import YuNetDetector
 from .vision.sface_recognizer import SFaceRecognizer
 from .vision.face_database import FaceDatabase
@@ -51,6 +53,7 @@ class CompanionService:
 
         # 2. Hardware Drivers
         self.leds = LEDController(settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
+        self.fan = FanController(pin=settings.PIN_FAN_RELAY, active_low=settings.FAN_RELAY_ACTIVE_LOW, enabled=settings.FAN_ENABLED)
         self.button = ButtonManager(settings.PIN_BUTTON_ACK, on_pressed=self._handle_button_press) if settings.PIN_BUTTON_ACK else None
         self.camera = CameraManager(
             camera_index=settings.CAMERA_INDEX,
@@ -93,6 +96,7 @@ class CompanionService:
     def start(self):
         logger.info("[Service] Starting Smart Rice Cooker Companion Box Service...")
         self._running = True
+        self.fan.start()
 
         # Precompile TTS in background
         threading.Thread(target=self.precompiler.precompile_all, daemon=True).start()
@@ -179,6 +183,8 @@ class CompanionService:
         if new_state == SystemState.ECO_SLEEP:
             # Visibly indicate power saving: turn off all LEDs
             self.leds.all_off()
+            if self.fan:
+                self.fan.stop()
             logger.info("[Service] 🌙 ECO-SLEEP ACTIVE: LEDs turned off to conserve power. Waiting for person to approach.")
             # Eco-Sleep: Keep camera in 1 FPS standby (cold sensor, zero heat, AE locked)
             # NEVER close V4L2 device so vision watchdog can instantly wake system when person arrives!
@@ -191,6 +197,8 @@ class CompanionService:
         elif new_state == SystemState.STANDBY:
             if old_state == SystemState.ECO_SLEEP:
                 self.ultrasonic.set_eco_mode(False)
+            if self.fan:
+                self.fan.start()
             self.leds.set_standby()
             self.camera.set_active_mode(False)
             if self.gui:
@@ -200,6 +208,8 @@ class CompanionService:
         elif new_state == SystemState.DETECTING:
             if old_state == SystemState.ECO_SLEEP:
                 self.ultrasonic.set_eco_mode(False)
+            if self.fan:
+                self.fan.start()
             self.leds.set_detecting()
             self.camera.set_active_mode(True)
             if self.gui:
@@ -207,6 +217,8 @@ class CompanionService:
 
         elif new_state == SystemState.ANNOUNCING:
             has_meds = context.get("has_meds", True)
+            if self.fan:
+                self.fan.start()
             self.leds.set_announcing(has_meds=has_meds)
             if self.gui:
                 self.gui.update_state_display("🟢 รายละเอียดการทานยาประจำมื้อ", "#06D6A0")
@@ -230,19 +242,25 @@ class CompanionService:
         try:
             member_id = None
             confidence = 0.0
+            best_face_box = None
+            best_frame = None
 
             # Multi-frame retry: scan up to 6 frames (camera AE stabilizes rapidly)
             for attempt in range(6):
                 frame = self.camera.get_latest_frame()
                 if frame is not None and frame.size > 0:
-                    mid, conf, _ = self.face_db.identify(frame)
+                    mid, conf, face_box = self.face_db.identify(frame)
                     if mid and mid != "unknown":
                         member_id = mid
                         confidence = conf
+                        best_face_box = face_box
+                        best_frame = frame.copy()
                         break
                     elif mid == "unknown":
                         if conf > confidence:
                             confidence = conf
+                        best_face_box = face_box
+                        best_frame = frame.copy()
                         if member_id is None:
                             member_id = "unknown"
                 time.sleep(0.18)
@@ -258,7 +276,7 @@ class CompanionService:
                         break
 
             if matched_member:
-                self._handle_recognized_member(matched_member)
+                self._handle_recognized_member(matched_member, frame=best_frame, face_box=best_face_box)
             else:
                 # Passerby or unrecognized face -> Stay completely silent!
                 logger.info(f"[Service] Unrecognized person / passerby ({member_id}). Staying silent.")
@@ -270,7 +288,7 @@ class CompanionService:
             self.fsm.transition_to(SystemState.STANDBY)
             self._last_activity_time = time.time()
 
-    def _handle_recognized_member(self, member_id: str):
+    def _handle_recognized_member(self, member_id: str, frame: Optional[np.ndarray] = None, face_box: Optional[np.ndarray] = None):
         self._last_activity_time = time.time()
         for k in self.repo.get_all_members().keys():
             if k.lower() == str(member_id).lower():
@@ -312,8 +330,25 @@ class CompanionService:
         if self.gui:
             self.gui.update_medication_display(display_name, slot_label, all_meds)
         self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
-        self.tracker.record_reminder(member_id, slot_key)
-        self.tracker.record_acknowledgement(member_id, slot_key)
+        # Save compressed WebP snapshot with intelligent crop & resize
+        snapshot_filename = None
+        if frame is not None:
+            try:
+                from .vision.snapshot_manager import save_adherence_snapshot
+                snapshot_filename = save_adherence_snapshot(
+                    frame=frame,
+                    face_box=face_box,
+                    member_id=member_id,
+                    slot_key=slot_key,
+                    snapshots_dir=settings.SNAPSHOTS_DIR,
+                    target_max_dim=getattr(settings, "SNAPSHOT_MAX_DIM", 400),
+                    quality=getattr(settings, "SNAPSHOT_QUALITY", 75)
+                )
+            except Exception as e:
+                logger.warning(f"[Service] Snapshot capture note: {e}")
+
+        self.tracker.record_reminder(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
+        self.tracker.record_acknowledgement(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
 
         # Send Telegram alert asynchronously
         try:
@@ -427,7 +462,8 @@ class CompanionService:
 
         if self._active_member_slot:
             member_id, slot_key = self._active_member_slot
-            self.tracker.record_acknowledgement(member_id, slot_key)
+            pass
+            self.tracker.record_acknowledgement(member_id, slot_key, spoken_message="ยืนยันรับประทานยาผ่านปุ่มกด", snapshot_file=None)
 
             member_info = self.repo.get_member(member_id)
             display_name = member_info.get("display_name", member_id)
@@ -450,6 +486,8 @@ class CompanionService:
         if self.button:
             self.button.close()
         self.leds.close()
+        if self.fan:
+            self.fan.cleanup()
 
     def _demo_trigger_watchdog(self):
         """Watches for simulation commands from Web Portal (Demo Mode)."""
@@ -496,8 +534,33 @@ class CompanionService:
             if self.gui:
                 self.gui.update_medication_display(display_name, slot_label, all_meds)
             self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': True})
-            self.tracker.record_reminder(member_id, slot_key)
-            self.tracker.record_acknowledgement(member_id, slot_key)
+            # Save or reuse snapshot for demo presentation
+            snapshot_filename = None
+            try:
+                import cv2
+                from .vision.snapshot_manager import save_adherence_snapshot
+                demo_frame = self.camera.get_latest_frame() if self.camera else None
+                if (demo_frame is None or demo_frame.size == 0) and settings.DATASET_DIR.is_dir():
+                    member_photos = list((settings.DATASET_DIR / member_id).glob("*.jpg"))
+                    if member_photos:
+                        demo_frame = cv2.imread(str(member_photos[0]))
+
+                if demo_frame is not None and demo_frame.size > 0:
+                    snapshot_filename = save_adherence_snapshot(
+                        frame=demo_frame,
+                        face_box=None,
+                        member_id=member_id,
+                        slot_key=slot_key,
+                        snapshots_dir=settings.SNAPSHOTS_DIR,
+                        target_max_dim=getattr(settings, "SNAPSHOT_MAX_DIM", 400),
+                        quality=getattr(settings, "SNAPSHOT_QUALITY", 75)
+                    )
+            except Exception as e:
+                logger.debug(f"[Demo] Snapshot note: {e}")
+
+            self.tracker.record_reminder(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
+            pass
+            self.tracker.record_acknowledgement(member_id, slot_key, spoken_message="ยืนยันรับประทานยาผ่านปุ่มกด", snapshot_file=None)
 
             try:
                 from .notifications.telegram_notifier import send_medication_alert

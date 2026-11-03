@@ -1,18 +1,29 @@
 /**
  * history_modal.js - Medication Adherence Health Log Sheet (2026 Edition)
  * Displays structured history of medication reminders, completion times,
- * and zero-touch adherence records with a dedicated reset button for competitions.
+ * zero-touch adherence records, captured AI snapshots (.webp), and spoken reminders.
  */
 
 import { store } from '../state.js';
 import { fetchAdherenceHistory, clearAdherenceHistory } from '../api.js';
 import { showToast } from './toast.js';
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export function setupHistoryModal() {
   const container = document.getElementById('modal-history-container');
   if (!container) return;
 
   container.innerHTML = `
+    <!-- Main History Sheet -->
     <div id="modal-history" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center hidden">
       <div id="modal-history-backdrop" class="modal-backdrop fixed inset-0"></div>
 
@@ -26,7 +37,7 @@ export function setupHistoryModal() {
             </div>
             <div>
               <h3 class="text-lg font-bold text-slate-800">ประวัติการทานยาย้อนหลัง</h3>
-              <p class="text-xs text-slate-500">บันทึกความสม่ำเสมอในการทานยา (ระบบ Zero-Touch บันทึกอัตโนมัติ)</p>
+              <p class="text-xs text-slate-500">บันทึกภาพตรวจจับและคำพูดเตือน (Zero-Touch Proof of Adherence)</p>
             </div>
           </div>
           <button id="btn-close-history-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
@@ -47,8 +58,34 @@ export function setupHistoryModal() {
         </div>
 
         <!-- Timeline Log Container -->
-        <div id="history-list" class="space-y-2.5 max-h-80 overflow-y-auto no-scrollbar">
+        <div id="history-list" class="space-y-3 max-h-96 overflow-y-auto no-scrollbar">
           <p class="text-xs text-slate-400 py-6 text-center animate-pulse">กำลังโหลดประวัติการทานยา...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Snapshot Lightbox Modal -->
+    <div id="modal-snapshot-preview" class="fixed inset-0 z-60 flex items-center justify-center hidden p-4">
+      <div id="modal-snapshot-backdrop" class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-xs"></div>
+      <div class="glass-sheet w-full max-w-sm rounded-3xl p-5 relative z-10 space-y-3.5 animate-in fade-in zoom-in-95 duration-150 text-center shadow-2xl">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div class="text-left">
+            <h4 id="preview-title" class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <span>📸</span> ภาพบันทึกขณะตรวจจับ
+            </h4>
+            <p id="preview-sub" class="text-[11px] text-slate-500"></p>
+          </div>
+          <button id="btn-close-snapshot-modal" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
+            ✕
+          </button>
+        </div>
+        <div class="relative rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner flex items-center justify-center aspect-square">
+          <img id="preview-img" src="" alt="Snapshot" class="w-full h-full object-cover">
+          <div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-mono flex items-center gap-1">
+            <span>⚡ WebP 400px</span>
+          </div>
+        </div>
+        <div id="preview-speech" class="text-xs text-amber-900 bg-amber-50/80 border border-amber-200/60 p-3 rounded-2xl text-left leading-relaxed">
         </div>
       </div>
     </div>
@@ -60,12 +97,23 @@ export function setupHistoryModal() {
   const closeBtn = document.getElementById('btn-close-history-modal');
   const clearBtn = document.getElementById('btn-clear-history');
 
+  const snapshotModal = document.getElementById('modal-snapshot-preview');
+  const snapshotBackdrop = document.getElementById('modal-snapshot-backdrop');
+  const snapshotCloseBtn = document.getElementById('btn-close-snapshot-modal');
+
   function closeModal() {
     modal.classList.add('hidden');
   }
 
+  function closeSnapshotModal() {
+    snapshotModal.classList.add('hidden');
+  }
+
   backdrop.addEventListener('click', closeModal);
   closeBtn.addEventListener('click', closeModal);
+
+  snapshotBackdrop.addEventListener('click', closeSnapshotModal);
+  snapshotCloseBtn.addEventListener('click', closeSnapshotModal);
 
   clearBtn.addEventListener('click', async () => {
     if (!confirm('ยืนยันที่จะล้างประวัติการทานยาทั้งหมดหรือไม่?\n(เหมาะสำหรับกดก่อนเริ่มพรีเซนต์ให้กรรมการดู)')) {
@@ -79,6 +127,40 @@ export function setupHistoryModal() {
     if (ok) {
       renderHistoryRecords({});
     }
+  });
+
+  // Delegate click for snapshot thumbnails in history list
+  const historyList = document.getElementById('history-list');
+  historyList.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-snapshot-trigger]');
+    if (!trigger) return;
+
+    const src = trigger.getAttribute('data-src');
+    const member = trigger.getAttribute('data-member');
+    const slot = trigger.getAttribute('data-slot');
+    const time = trigger.getAttribute('data-time');
+    const speech = trigger.getAttribute('data-speech');
+
+    document.getElementById('preview-img').src = src;
+    document.getElementById('preview-sub').textContent = `${member} (${slot}) • ${time} น.`;
+
+    const speechEl = document.getElementById('preview-speech');
+    if (speech) {
+      speechEl.classList.remove('hidden');
+      speechEl.innerHTML = `
+        <div class="flex items-start gap-1.5">
+          <span class="text-amber-600 text-sm shrink-0">🔊</span>
+          <div>
+            <span class="font-bold text-amber-950 block mb-0.5">คำพูดเตือนจริง:</span>
+            <span class="italic text-slate-700 font-normal">"${speech}"</span>
+          </div>
+        </div>
+      `;
+    } else {
+      speechEl.classList.add('hidden');
+    }
+
+    snapshotModal.classList.remove('hidden');
   });
 }
 
@@ -126,7 +208,7 @@ function renderHistoryRecords(data) {
       <div class="text-center py-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
         <span class="text-2xl">🌱</span>
         <p class="text-xs font-semibold text-slate-600 mt-2">ยังไม่มีประวัติการทานยาในวันนี้</p>
-        <p class="text-[11px] text-slate-400 mt-0.5">ระบบจะบันทึกอัตโนมัติเมื่อกล่องเตือนยาสำเร็จ หรือเมื่อกดจำลองสถานการณ์</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">ระบบจะบันทึกภาพถ่ายและคำพูดอัตโนมัติเมื่อตรวจจับคนมารับยา หรือเมื่อกดจำลองสถานการณ์</p>
       </div>
     `;
     return;
@@ -140,29 +222,72 @@ function renderHistoryRecords(data) {
     const timeVal = item.acknowledged_at || item.last_reminded_at;
     const timeStr = timeVal ? new Date(timeVal * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
+    const hasSnapshot = Boolean(item.snapshot_file);
+    const snapshotSrc = hasSnapshot ? `/snapshots/${item.snapshot_file}` : '';
+    const hasSpeech = Boolean(item.spoken_message && item.spoken_message.trim());
+    const escapedSpeech = escapeHtml(item.spoken_message || '');
+
     return `
-      <div class="p-3.5 rounded-2xl border ${isAck ? 'bg-emerald-50/40 border-emerald-100' : 'bg-slate-50/70 border-slate-100'} flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full ${isAck ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center font-bold text-sm shrink-0">
-            ${isAck ? '✓' : '⏳'}
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-slate-800">${item.memberName}</span>
-              <span class="text-xs font-semibold text-slate-500">(${item.slotLabel})</span>
+      <div class="p-3.5 rounded-2xl border ${isAck ? 'bg-emerald-50/30 border-emerald-100/90' : 'bg-slate-50/70 border-slate-100'} transition shadow-2xs space-y-2.5">
+        <!-- Main Card Header -->
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <!-- Thumbnail / Avatar -->
+            ${hasSnapshot ? `
+              <div 
+                class="relative w-12 h-12 rounded-xl overflow-hidden border border-emerald-200/90 shadow-2xs shrink-0 cursor-pointer group bg-slate-100"
+                data-snapshot-trigger="true"
+                data-src="${snapshotSrc}"
+                data-member="${escapeHtml(item.memberName)}"
+                data-slot="${escapeHtml(item.slotLabel)}"
+                data-time="${timeStr}"
+                data-speech="${escapedSpeech}"
+                title="คลิกเพื่อดูภาพตรวจจับขยาย"
+              >
+                <img src="${snapshotSrc}" alt="${item.memberName}" class="w-full h-full object-cover group-hover:scale-110 transition duration-200" loading="lazy">
+                <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-white text-xs">
+                  🔍
+                </div>
+              </div>
+            ` : `
+              <div class="w-10 h-10 rounded-full ${isAck ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center font-bold text-sm shrink-0">
+                ${isAck ? '✓' : '⏳'}
+              </div>
+            `}
+
+            <!-- Member and Slot Info -->
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-sm text-slate-800 truncate">${item.memberName}</span>
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-md ${isAck ? 'bg-emerald-100/70 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
+                  ${item.slotLabel}
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5 truncate">
+                ${isAck ? 'ตรวจพบใบหน้ายืนยันตัวตน (Zero-Touch Auto-Ack)' : 'กำลังรอรับประทานยา'}
+              </p>
             </div>
-            <p class="text-[11px] text-slate-400 mt-0.5">
-              ${isAck ? 'บันทึกสถานะทานยาแล้ว (Zero-Touch Auto-Ack)' : 'กำลังรอรับประทานยา'}
-            </p>
+          </div>
+
+          <!-- Time & Status Pill -->
+          <div class="text-right shrink-0">
+            <span class="text-xs font-mono font-bold ${isAck ? 'text-emerald-700' : 'text-slate-600'}">${timeStr} น.</span>
+            <span class="block text-[10px] font-semibold ${isAck ? 'text-emerald-600' : 'text-amber-600'}">
+              ${isAck ? '✅ ทานแล้ว' : 'เตือนแล้ว'}
+            </span>
           </div>
         </div>
 
-        <div class="text-right shrink-0">
-          <span class="text-xs font-mono font-bold ${isAck ? 'text-emerald-700' : 'text-slate-600'}">${timeStr} น.</span>
-          <span class="block text-[10px] font-semibold ${isAck ? 'text-emerald-600' : 'text-amber-600'}">
-            ${isAck ? '✅ ทานแล้ว' : 'เตือนแล้ว'}
-          </span>
-        </div>
+        <!-- Spoken Warning Message Bubble -->
+        ${hasSpeech ? `
+          <div class="bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 flex items-start gap-2">
+            <span class="text-amber-600 text-xs mt-0.5 shrink-0">🔊</span>
+            <div class="text-[11px] text-amber-950 leading-relaxed min-w-0">
+              <span class="font-bold text-amber-900">คำพูดเตือน:</span>
+              <span class="italic text-slate-700 font-normal">"${item.spoken_message}"</span>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   }).join('');

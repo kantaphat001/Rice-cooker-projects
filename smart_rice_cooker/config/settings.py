@@ -14,6 +14,7 @@ MODELS_DIR = MODULE_DIR / "models"
 AUDIO_CACHE_DIR = BASE_DIR / "audio_cache"
 DATASET_DIR = BASE_DIR / "dataset"
 IMAGES_DIR = BASE_DIR / "images"
+SNAPSHOTS_DIR = BASE_DIR / "snapshots"
 
 # RAM Disk for SD Card Flash Protection (writes temporary TTS and state to RAM)
 import tempfile
@@ -27,11 +28,21 @@ except Exception:
 AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATASET_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Snapshot Compression & Retention Policies (Optimized for Raspberry Pi Storage)
+SNAPSHOT_MAX_DIM = int(os.getenv("SNAPSHOT_MAX_DIM", 400))       # Resized max dimension (width or height)
+SNAPSHOT_QUALITY = int(os.getenv("SNAPSHOT_QUALITY", 75))        # WebP lossy quality (75% = sharp, ~15KB)
+SNAPSHOT_MAX_FILES = int(os.getenv("SNAPSHOT_MAX_FILES", 300))   # Maximum stored snapshots
+SNAPSHOT_RETENTION_DAYS = int(os.getenv("SNAPSHOT_RETENTION_DAYS", 30)) # Auto-delete older than 30 days
 
 # Hardware Pinout Mapping (BCM numbering)
 PIN_LED_RED = int(os.getenv("PIN_LED_RED", 17))       # Pin 11 - Standby / Idle
 PIN_LED_YELLOW = int(os.getenv("PIN_LED_YELLOW", 27)) # Pin 13 - Scanning / Detecting
 PIN_LED_GREEN = int(os.getenv("PIN_LED_GREEN", 22))   # Pin 15 - Announcing / Complete
+PIN_FAN_RELAY = int(os.getenv("PIN_FAN_RELAY", 18))       # Pin 12 - GPIO 18 (Cooling Fan Relay Control IN)
+FAN_RELAY_ACTIVE_LOW = os.getenv("FAN_RELAY_ACTIVE_LOW", "True").lower() in ("true", "1", "yes") # True for standard relay modules
+FAN_ENABLED = os.getenv("FAN_ENABLED", "True").lower() in ("true", "1", "yes")
 _pin_btn = os.getenv("PIN_BUTTON_ACK", "")
 PIN_BUTTON_ACK = int(_pin_btn) if _pin_btn.isdigit() else None # None = Hands-Free / Zero-Touch mode (No Button)
 AUTO_ACKNOWLEDGE_ON_REMIND = True

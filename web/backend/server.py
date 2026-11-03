@@ -46,6 +46,12 @@ from web.backend.asset_generator import (
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+SNAPSHOTS_DIR = ROOT_DIR / "snapshots"
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+from web.backend.face_service import is_running_on_pi, PI_USER, PI_PASS, PARAMIKO_AVAILABLE
+if PARAMIKO_AVAILABLE:
+    import paramiko
 
 CURRENT_PORT = 8080
 LOCAL_IP = get_local_ip()
@@ -59,6 +65,7 @@ MIME_TYPES = {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
     '.svg': 'image/svg+xml; charset=utf-8',
     '.ico': 'image/x-icon',
     '.woff2': 'font/woff2',
@@ -252,6 +259,38 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             self._send_bytes(b"Image not found", "text/plain", code=404)
             return
 
+        # Snapshots Serving (/snapshots/<filename>)
+        if path.startswith('/snapshots/'):
+            filename = unquote(path[len('/snapshots/'):]).lstrip('/')
+            if '/' not in filename and '\\' not in filename and filename:
+                target_file = (SNAPSHOTS_DIR / filename).resolve()
+                if not target_file.is_file() and not is_running_on_pi() and PARAMIKO_AVAILABLE:
+                    try:
+                        pi_ip = get_pi_ip()
+                        ssh = paramiko.SSHClient()
+                        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                        ssh.connect(pi_ip, username=PI_USER, password=PI_PASS, timeout=3)
+                        sftp = ssh.open_sftp()
+                        SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+                        sftp.get(f"/home/{PI_USER}/snapshots/{filename}", str(target_file))
+                        sftp.close()
+                        ssh.close()
+                    except Exception:
+                        pass
+
+                if SNAPSHOTS_DIR in target_file.parents and target_file.is_file():
+                    ext = target_file.suffix.lower()
+                    mime = MIME_TYPES.get(ext, 'image/webp')
+                    try:
+                        with open(target_file, 'rb') as f:
+                            content = f.read()
+                        self._send_bytes(content, mime, cache_seconds=3600)
+                        return
+                    except Exception:
+                        pass
+            self._send_bytes(b"Snapshot not found", "text/plain", code=404)
+            return
+
         # 5. Static Frontend Files (/css/..., /js/..., /assets/...)
         rel_static = path.lstrip('/')
         target_static = (FRONTEND_DIR / rel_static).resolve()
@@ -338,7 +377,9 @@ class MedPortalHandler(BaseHTTPRequestHandler):
                 try:
                     from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
                     tracker = AdherenceTracker()
-                    tracker.record_acknowledgement(member_id, slot_key)
+                    spoken_msg = req_data.get('spoken_message', '')
+                    snapshot_fn = req_data.get('snapshot_file', None)
+                    tracker.record_acknowledgement(member_id, slot_key, spoken_message=spoken_msg, snapshot_file=snapshot_fn)
                     self._send_json({"success": True, "message": f"บันทึกว่า {member_id} รับประทานยา {slot_key} เรียบร้อยแล้ว", "adherence": tracker.get_all_records()})
                 except Exception as e:
                     self._send_json({"success": False, "error": str(e)}, code=500)

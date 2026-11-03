@@ -74,11 +74,12 @@ def main():
     print("  [3] ทดสอบเสียงพูดภาษาไทย (เล่นออกลำโพงคอมพิวเตอร์ Windows และ Pi)")
     print("  [4] ถ่ายภาพจากกล้อง USB และเปิดรูปบนหน้าจอ Windows ทันที")
     print("  [5] เปิดสตรีมกล้องสดแบบเรียลไทม์ (Live Video Stream ใน Browser)")
+    print("  [6] ทดสอบพัดลมระบายความร้อนและรีเลย์ (Relay Pin 12 [GPIO 18])")
     print("  [0] ออกจากโปรแกรม")
     print("=" * 70)
 
     try:
-        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 0): ").strip()
+        choice = input("เลือกหมายเลขการทดสอบ (1, 2, 3, 4, 5, 6, 0): ").strip()
     except EOFError:
         choice = "0"
 
@@ -240,6 +241,31 @@ else:
             runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "view_live_camera.py")
             subprocess.run([sys.executable, runner])
             return
+
+        elif choice == "6":
+            was_paused = pause_service_if_active(ssh)
+            print("\n[*] กำลังทดสอบพัดลมระบายความร้อน (Relay Module)...")
+            code = """
+import time
+from smart_rice_cooker.hardware.fan_controller import FanController
+from smart_rice_cooker.config import settings
+
+fan = FanController(settings.PIN_FAN_RELAY, active_low=settings.FAN_RELAY_ACTIVE_LOW, enabled=True)
+print('[*] 1. สั่งเปิดพัดลม (Relay ON) ค้างไว้ 5 วินาที...')
+fan.start()
+time.sleep(5)
+
+print('[*] 2. สั่งปิดพัดลม (Relay OFF / จำลองโหมด Eco-Sleep) ค้างไว้ 3 วินาที...')
+fan.stop()
+time.sleep(3)
+
+print('[*] 3. สั่งเปิดพัดลมอีกครั้ง (Relay ON / จำลองการตื่นจาก Eco-Sleep)...')
+fan.start()
+time.sleep(3)
+fan.cleanup()
+print('[+] ทดสอบพัดลมระบายความร้อนและรีเลย์สำเร็จ 100%!')
+"""
+            run_remote_python(ssh, code)
 
     finally:
         if was_paused:

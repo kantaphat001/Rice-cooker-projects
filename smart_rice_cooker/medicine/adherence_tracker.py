@@ -11,7 +11,7 @@ import time
 import logging
 from datetime import datetime, date
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ..config.settings import RAM_STATE_FILE, PERSISTENT_STATE_FILE
 
@@ -110,7 +110,7 @@ class AdherenceTracker:
         except Exception as e:
             logger.debug(f"[Tracker] Failed to sync adherence to Pi: {e}")
 
-    def record_reminder(self, member_id: str, slot_key: str):
+    def record_reminder(self, member_id: str, slot_key: str, spoken_message: Optional[str] = None, snapshot_file: Optional[str] = None):
         self._check_reload()
         records = self._state.setdefault("records", {}).setdefault(member_id, {})
         slot_rec = records.setdefault(slot_key, {
@@ -120,12 +120,16 @@ class AdherenceTracker:
             "acknowledged_at": None
         })
 
+        if spoken_message:
+            slot_rec["spoken_message"] = spoken_message
+        if snapshot_file:
+            slot_rec["snapshot_file"] = snapshot_file
         slot_rec["reminded_count"] += 1
         slot_rec["last_reminded_at"] = time.time()
         self._save_state(to_disk=True)
         logger.info(f"[Tracker] Recorded reminder for {member_id} ({slot_key}). Count={slot_rec['reminded_count']}")
 
-    def record_acknowledgement(self, member_id: str, slot_key: str):
+    def record_acknowledgement(self, member_id: str, slot_key: str, spoken_message: Optional[str] = None, snapshot_file: Optional[str] = None):
         self._check_reload()
         records = self._state.setdefault("records", {}).setdefault(member_id, {})
         slot_rec = records.setdefault(slot_key, {
@@ -137,6 +141,10 @@ class AdherenceTracker:
 
         slot_rec["acknowledged"] = True
         slot_rec["acknowledged_at"] = time.time()
+        if spoken_message:
+            slot_rec["spoken_message"] = spoken_message
+        if snapshot_file:
+            slot_rec["snapshot_file"] = snapshot_file
         self._save_state(to_disk=True)
         logger.info(f"[Tracker] ✅ Acknowledged medication taken: {member_id} ({slot_key})")
 

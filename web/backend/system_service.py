@@ -72,18 +72,20 @@ def _exec_pi_cmd(cmd: str, timeout: int = 15) -> Tuple[bool, str]:
                     pass
 
 
-def sync_system_time(time_str: str) -> Tuple[bool, str]:
+def sync_system_time(iso_time_str: str) -> Tuple[bool, str]:
     """
-    Syncs Raspberry Pi system clock to the given datetime string (YYYY-MM-DD HH:MM:SS).
-    Works completely offline without NTP.
+    Synchronizes Raspberry Pi system clock to browser/PC time without NTP dependency.
+    Format: 'YYYY-MM-DD HH:MM:SS'
     """
-    cmd = f'echo 1234 | sudo -S date -s "{time_str}"'
-    ok, out = _exec_pi_cmd(cmd, timeout=10)
-    if ok:
-        # Also sync to hardware clock if available
-        _exec_pi_cmd("echo 1234 | sudo -S hwclock -w", timeout=5)
-        return (True, f"ซิงค์เวลาเป็น {time_str} สำเร็จ")
-    return (False, out or "ไม่สามารถซิงค์เวลาได้")
+    try:
+        clean_time = iso_time_str.replace("T", " ")[:19]
+        cmd = f"sudo timedatectl set-ntp false 2>/dev/null; sudo date -s '{clean_time}'"
+        ok, out = _exec_pi_cmd(cmd, timeout=8)
+        if ok:
+            return (True, f"ซิงค์เวลาบอร์ดเป็น {clean_time} เรียบร้อยแล้ว")
+        return (False, f"ไม่สามารถตั้งเวลาได้: {out}")
+    except Exception as e:
+        return (False, f"ข้อผิดพลาด: {str(e)}")
 
 
 def get_system_volume() -> int:
@@ -112,7 +114,6 @@ def set_system_volume(percent: int) -> Tuple[bool, str]:
 
 def play_test_sound() -> Tuple[bool, str]:
     """Plays pleasant test tone or speech through the Pi speaker."""
-    # Try using mpg123 with existing speech/chime or python speaker ping
     script = (
         'python3 -c "'
         'import os;'
@@ -128,6 +129,7 @@ def trigger_demo_simulation(scenario: str, member_id: str) -> Tuple[bool, str]:
     """
     Triggers simulated presentation scenario on Raspberry Pi hardware.
     Writes trigger payload to /dev/shm/demo_trigger.json
+    Falls back to local simulation on PC if Pi is offline.
     """
     payload = json.dumps({"scenario": scenario, "member_id": member_id}, ensure_ascii=False)
     if is_running_on_pi():
@@ -138,22 +140,57 @@ def trigger_demo_simulation(scenario: str, member_id: str) -> Tuple[bool, str]:
         except Exception as e:
             return (False, str(e))
     else:
-        # Remote PC: write via SSH
-        if not PARAMIKO_AVAILABLE:
-            return (False, "Paramiko not available on PC")
+        # Remote PC: attempt write via SSH
+        if PARAMIKO_AVAILABLE:
+            try:
+                ip = get_pi_ip()
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=4)
+                sftp = ssh.open_sftp()
+                with sftp.open("/dev/shm/demo_trigger.json", "w") as f:
+                    f.write(payload)
+                sftp.close()
+                ssh.close()
+                return (True, f"เริ่มจำลองสถานการณ์ '{scenario}' บนกล่องแล้ว")
+            except Exception:
+                pass
+
+        # Standalone fallback on PC when Pi is offline
         try:
-            ip = get_pi_ip()
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ip, username=PI_USER, password=PI_PASS, timeout=5)
-            sftp = ssh.open_sftp()
-            with sftp.open("/dev/shm/demo_trigger.json", "w") as f:
-                f.write(payload)
-            sftp.close()
-            ssh.close()
-            return (True, f"เริ่มจำลองสถานการณ์ '{scenario}' บนกล่องแล้ว")
-        except Exception as e:
-            return (False, str(e))
+            from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
+            from smart_rice_cooker.config import settings
+            from smart_rice_cooker.vision.snapshot_manager import save_adherence_snapshot
+            from smart_rice_cooker.voice.phrase_builder import ThaiPhraseBuilder
+            from web.backend.config_service import load_config
+            import cv2
+
+            cfg = load_config()
+            member_info = cfg.get("members", {}).get(member_id, {})
+            display_name = member_info.get("display_name", member_id)
+            greeting = member_info.get("voice_greeting", f"สวัสดีค่ะ{display_name}")
+            schedules = member_info.get("schedules", {})
+            slot_key = "morning" if "morning" in schedules else (list(schedules.keys())[0] if schedules else "morning")
+            slot_data = schedules.get(slot_key, {})
+            slot_label = slot_data.get("label", "มื้อเช้า")
+            before_meds = slot_data.get("before_meal", [])
+            after_meds = slot_data.get("after_meal", [])
+
+            msg = ThaiPhraseBuilder.build_full_meal_announcement(greeting, slot_label, before_meds, after_meds)
+
+            demo_snapshot = None
+            dataset_member_dir = settings.DATASET_DIR / member_id
+            if dataset_member_dir.is_dir():
+                photos = list(dataset_member_dir.glob("*.jpg"))
+                if photos:
+                    frame = cv2.imread(str(photos[0]))
+                    demo_snapshot = save_adherence_snapshot(frame, None, member_id, slot_key, settings.SNAPSHOTS_DIR)
+
+            tracker = AdherenceTracker()
+            tracker.record_acknowledgement(member_id, slot_key, spoken_message=msg, snapshot_file=demo_snapshot)
+            return (True, f"จำลองสถานการณ์ '{scenario}' สำเร็จ (บันทึกภาพ WebP และเสียงเตือนแล้ว)")
+        except Exception as ex:
+            return (False, f"การจำลองสถานการณ์ล้มเหลว: {ex}")
 
 
 def get_adherence_history() -> Dict[str, Any]:
@@ -177,6 +214,7 @@ def clear_adherence_history() -> bool:
     except Exception as e:
         logger.error(f"[History] Error clearing history: {e}")
         return False
+
 
 def get_sensor_distance() -> Dict[str, Any]:
     """
@@ -279,4 +317,3 @@ def set_sensor_distance(distance_cm: float) -> Tuple[bool, str]:
         return (True, f"ตั้งค่าระยะตรวจจับอัลตราโซนิกเป็น {val:.0f} ซม. เรียบร้อย")
     except Exception as e:
         return (False, f"เกิดข้อผิดพลาด: {str(e)}")
-

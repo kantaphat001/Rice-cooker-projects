@@ -13,6 +13,8 @@ adherence_state.json
 config_ip.txt
 backups/
 screenshots/
+snapshots/*.webp
+!snapshots/.gitkeep
 logs/
 
 # Python & OS
@@ -27,3 +29,8 @@ $RECYCLE.BIN/
 .DS_Store
 *.tmp
 *.log
+
+# Office temporary files
+~$*
+*.tmp
+

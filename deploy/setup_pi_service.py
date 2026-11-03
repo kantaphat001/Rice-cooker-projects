@@ -41,6 +41,7 @@ def main():
 
     # 1. Sync updated code
     print("[*] กำลังซิงค์ไฟล์โปรแกรมล่าสุด...")
+    ssh.exec_command(f"mkdir -p /home/{PI_USER}/snapshots")
     sftp = ssh.open_sftp()
     local_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
@@ -57,6 +58,24 @@ def main():
             if f.endswith(".py"):
                 sftp.put(os.path.join(root, f), f"{remote_dir}/{f}")
 
+    # Sync web directory
+    for root, dirs, files in os.walk(os.path.join(local_root, "web")):
+        dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git")]
+        rel_dir = os.path.relpath(root, local_root).replace("\\", "/")
+        remote_dir = f"/home/{PI_USER}/{rel_dir}"
+        try:
+            sftp.stat(remote_dir)
+        except IOError:
+            ssh.exec_command(f"mkdir -p {remote_dir}")
+        for f in files:
+            sftp.put(os.path.join(root, f), f"{remote_dir}/{f}")
+
+    # Sync root scripts
+    for root_f in ("web_manager.py", "run_companion_box.py"):
+        rf_path = os.path.join(local_root, root_f)
+        if os.path.exists(rf_path):
+            sftp.put(rf_path, f"/home/{PI_USER}/{root_f}")
+
     # Sync service file to /tmp
     service_local = os.path.join(local_root, "deploy", "smart-cooker.service")
     service_tmp = "/tmp/smart-cooker.service"
@@ -70,6 +89,7 @@ echo {PI_PASS} | sudo -S cp /tmp/smart-cooker.service /etc/systemd/system/smart-
 echo {PI_PASS} | sudo -S systemctl daemon-reload
 echo {PI_PASS} | sudo -S systemctl enable smart-cooker.service
 echo {PI_PASS} | sudo -S systemctl restart smart-cooker.service
+echo {PI_PASS} | sudo -S systemctl restart smart-cooker-web.service
 """
     stdin, stdout, stderr = ssh.exec_command(cmd_install)
     stdout.channel.recv_exit_status()
