@@ -266,16 +266,9 @@ class CompanionService:
             if matched_member:
                 self._handle_recognized_member(matched_member, frame=best_frame, face_box=best_face_box)
             else:
-                # Visitor or unrecognized person -> Friendly greeting with 60s anti-spam lock
-                logger.info(f"[Service] Unrecognized person / visitor ({member_id}).")
-                now = time.time()
-                if (now - self._last_visitor_greeting) >= 60.0:
-                    self._last_visitor_greeting = now
-                    msg = ThaiPhraseBuilder.build_unknown_visitor_message()
-                    self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
-                    self._speak_and_finish(msg, has_meds=False)
-                else:
-                    self.fsm.transition_to(SystemState.STANDBY)
+                # Passerby or unrecognized face -> Stay completely silent!
+                logger.info(f"[Service] Unrecognized person / passerby ({member_id}). Staying silent.")
+                self.fsm.transition_to(SystemState.STANDBY)
                 self._last_activity_time = time.time()
 
         except Exception as e:
@@ -302,21 +295,10 @@ class CompanionService:
             self.fsm.transition_to(SystemState.STANDBY)
             return
 
-        # INSIDE ACTIVE MEAL WINDOW: If already reminded/acknowledged -> Friendly reassurance with 45s cooldown
+        # INSIDE ACTIVE MEAL WINDOW: If already reminded/acknowledged -> STAY COMPLETELY SILENT!
         if self.tracker.is_acknowledged(member_id, slot_key):
-            last_reassurance = self._last_ack_reassurance.get((member_id, slot_key), 0.0)
-            now = time.time()
-            if (now - last_reassurance) >= 45.0:
-                self._last_ack_reassurance[(member_id, slot_key)] = now
-                logger.info(f"[Service] {member_id} ({display_name}) already received/taken medication for {slot_key}. Reassuring user.")
-                msg = ThaiPhraseBuilder.build_already_taken_message(display_name)
-                if self.gui:
-                    self.gui.show_already_taken(display_name)
-                self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
-                self._speak_and_finish(msg, has_meds=False)
-            else:
-                logger.info(f"[Service] {member_id} ({display_name}) repeated arrival within 45s -> Staying silent.")
-                self.fsm.transition_to(SystemState.STANDBY)
+            logger.info(f"[Service] {member_id} ({display_name}) already took medication for {slot_key}. Repeated arrival in same meal -> Staying completely silent.")
+            self.fsm.transition_to(SystemState.STANDBY)
             return
 
         slot_label = slot_data.get("label", slot_key)
@@ -326,18 +308,8 @@ class CompanionService:
         self._active_member_slot = (member_id, slot_key)
 
         if not all_meds:
-            logger.info(f"[Service] {member_id} ({display_name}) has no medications prescribed for {slot_label}. Announcing friendly reassurance.")
-            last_greet = self._last_friendly_greeting_time.get(member_id, 0.0)
-            now = time.time()
-            if (now - last_greet) >= 45.0:
-                self._last_friendly_greeting_time[member_id] = now
-                msg = ThaiPhraseBuilder.build_no_meds_message(greeting)
-                if self.gui:
-                    self.gui.update_medication_display(display_name, slot_label, [])
-                self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
-                self._speak_and_finish(msg, has_meds=False)
-            else:
-                self.fsm.transition_to(SystemState.STANDBY)
+            logger.info(f"[Service] {member_id} ({display_name}) has no medications prescribed for {slot_label}. Staying silent.")
+            self.fsm.transition_to(SystemState.STANDBY)
             return
 
         # Active meal window announcement (First time arriving for this meal)
