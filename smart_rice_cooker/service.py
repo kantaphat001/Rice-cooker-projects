@@ -128,9 +128,9 @@ class CompanionService:
         logger.info("[Service] ✅ All subsystems operational and listening.")
 
     def _activity_watchdog_loop(self):
-        """Monitors idle time and manages transitions to Eco-Sleep mode."""
+        """Monitors idle time and manages transitions to Eco-Sleep mode with fail-safe recovery."""
         while self._running:
-            time.sleep(5.0)
+            time.sleep(1.0)
             # Sync dynamic distance threshold if updated via web config
             try:
                 cfg_dist = self.repo.get_distance_trigger_cm(settings.DISTANCE_TRIGGER_CM)
@@ -139,7 +139,15 @@ class CompanionService:
             except Exception:
                 pass
 
-            if self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
+            # Fail-Safe Watchdog: If DETECTING state gets stuck for > 6.0s, auto-recover to STANDBY!
+            if self.fsm.current_state == SystemState.DETECTING:
+                detecting_duration = time.time() - self._last_activity_time
+                if detecting_duration >= 6.0:
+                    logger.warning(f"[Service] ⚠️ DETECTING state stuck for {detecting_duration:.1f}s. Auto-recovering to STANDBY.")
+                    self.fsm.transition_to(SystemState.STANDBY)
+                    self._last_activity_time = time.time()
+
+            elif self.fsm.current_state == SystemState.STANDBY and not self._is_announcing:
                 idle_time = time.time() - self._last_activity_time
                 if idle_time >= settings.AUTO_SLEEP_TIMEOUT_SEC:
                     logger.info(f"[Service] Inactivity reached {idle_time:.0f}s >= {settings.AUTO_SLEEP_TIMEOUT_SEC}s. Entering Eco-Sleep.")
@@ -503,7 +511,7 @@ class CompanionService:
         display_name = member_info.get("display_name", member_id)
         greeting = member_info.get("voice_greeting", f"สวัสดีค่ะ{display_name}")
 
-        if scenario == "normal_meal":
+        if scenario in ("normal_meal", "morning_med", "medication", "wakeup"):
             schedules = member_info.get("schedules", {})
             slot_key = "morning" if "morning" in schedules else (list(schedules.keys())[0] if schedules else "morning")
             slot_data = schedules.get(slot_key, {})
@@ -576,3 +584,8 @@ class CompanionService:
                 self.gui.update_medication_display(display_name, f"มื้อถัดไป: {slot_label}", all_meds)
             self.fsm.transition_to(SystemState.ANNOUNCING, context={'has_meds': False})
             self._speak_and_finish(msg, has_meds=False)
+
+        else:
+            logger.warning(f"[Service] Unrecognized demo scenario '{scenario}'. Safely resetting to STANDBY.")
+            self.fsm.transition_to(SystemState.STANDBY)
+            self._last_activity_time = time.time()
