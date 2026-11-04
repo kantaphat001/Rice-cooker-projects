@@ -84,7 +84,7 @@ PIN_LED_GREEN = int(os.getenv("PIN_LED_GREEN", 22))   # Pin 15 - Announcing / Co
 
 PIN_FAN_RELAY = int(os.getenv("PIN_FAN_RELAY", 18))       # Pin 12 - GPIO 18 (Cooling Fan Relay Control IN)
 
-FAN_RELAY_ACTIVE_LOW = os.getenv("FAN_RELAY_ACTIVE_LOW", "True").lower() in ("true", "1", "yes") # True for standard relay modules
+FAN_RELAY_ACTIVE_LOW = os.getenv("FAN_RELAY_ACTIVE_LOW", "False").lower() in ("true", "1", "yes") # False (Active-High: HIGH=Spin, LOW=Eco-Sleep Stop)
 
 FAN_ENABLED = os.getenv("FAN_ENABLED", "True").lower() in ("true", "1", "yes")
 

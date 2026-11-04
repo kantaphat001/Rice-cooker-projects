@@ -43,7 +43,7 @@ time.sleep(1)
 
 print(f"\n[*] 1. กำลังสั่งเปิดพัดลมระบายความร้อน (Relay ON ผ่าน Pin 12 / GPIO {PIN_RELAY})...")
 # Active Low: pull LOW (dl) to energize relay coil
-ssh.exec_command(f"pinctrl set {PIN_RELAY} op dl")
+ssh.exec_command(f"pinctrl set {PIN_RELAY} op dh")
 print("  >>> รีเลย์จะส่งเสียง 'คลิก' ไฟสีเขียวบนโมดูลจะติด และพัดลมจะเริ่มหมุน!")
 
 print("\n" + "=" * 70)
@@ -56,7 +56,7 @@ except Exception:
 
 print(f"\n[*] 2. กำลังสั่งปิดพัดลม (Relay OFF ผ่าน Pin 12 / GPIO {PIN_RELAY})...")
 # Active Low: pull HIGH (dh) to de-energize relay coil
-ssh.exec_command(f"pinctrl set {PIN_RELAY} op dh")
+ssh.exec_command(f"pinctrl set {PIN_RELAY} op dl")
 print("  >>> รีเลย์จะคลิกอีกครั้ง ไฟเขียวบนโมดูลดับ และพัดลมหยุดหมุน!")
 time.sleep(2)
 

@@ -25,7 +25,7 @@ except (ImportError, Exception):
 class FanController:
     """Controls 5V Relay module for cooling fan."""
 
-    def __init__(self, pin: int = 18, active_low: bool = True, enabled: bool = True):
+    def __init__(self, pin: int = 18, active_low: bool = False, enabled: bool = True):
         self.pin = pin
         self.active_low = active_low
         self.enabled = enabled

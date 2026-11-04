@@ -19,6 +19,7 @@ def main():
     # 1. Sync code files
     files_to_sync = [
         "smart_rice_cooker/config/settings.py",
+        "smart_rice_cooker/hardware/fan_controller.py",
         "smart_rice_cooker/voice/tts_engine.py",
         "smart_rice_cooker/service.py",
         "web/frontend/js/components/schedule_board.js",
