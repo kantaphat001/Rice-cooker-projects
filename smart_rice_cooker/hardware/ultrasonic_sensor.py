@@ -158,7 +158,11 @@ class UltrasonicSensor:
                 self._fail_count = 0
                 self.is_hardware_fault = False
                 return statistics.median(self._readings)
-            return 150.0
+            else:
+                self._fail_count += 1
+                if self._fail_count >= 5:
+                    self.is_hardware_fault = True
+                return 150.0
 
         # 2. Read via gpiozero fallback
         if self._gz_sensor is not None:
