@@ -155,10 +155,9 @@ FACE_RECOGNITION_THRESHOLD = 0.65  # Cosine similarity for family matching (0.70
 
 
 # Audio & Thai TTS (Elderly-Friendly Tuning)
-
-VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Voice (Premwadee)
-
-VOICE_RATE = os.getenv("VOICE_RATE", "+0%")                   # Gentle, clear natural cadence (-10%) for elderly clarity
+VOICE_NAME = os.getenv("VOICE_NAME", "th-TH-PremwadeeNeural") # Polite Thai Female Voice (Premwadee)
+VOICE_RATE = os.getenv("VOICE_RATE", "+0%")                   # Natural rate for clarity
+VOICE_PITCH = os.getenv("VOICE_PITCH", "+12Hz")               # Bright high-pitch (+12Hz) for clear outdoor audibility
 
 CHIME_FILE = AUDIO_CACHE_DIR / "chime.mp3"                     # Soft pre-announcement chime (optional)
 

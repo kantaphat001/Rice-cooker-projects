@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..config.settings import AUDIO_CACHE_DIR, AUDIO_TEMP_DIR, VOICE_NAME, VOICE_RATE
+from ..config.settings import AUDIO_CACHE_DIR, AUDIO_TEMP_DIR, VOICE_NAME, VOICE_RATE, VOICE_PITCH
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,13 @@ class TTSEngine:
                  cache_dir: Path = AUDIO_CACHE_DIR,
                  temp_dir: Path = AUDIO_TEMP_DIR,
                  voice: str = VOICE_NAME,
-                 rate: str = VOICE_RATE):
+                 rate: str = VOICE_RATE,
+                 pitch: str = VOICE_PITCH):
         self.cache_dir = Path(cache_dir)
         self.temp_dir = Path(temp_dir)
         self.voice = voice
         self.rate = rate
+        self.pitch = pitch
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         try:
             self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +47,7 @@ class TTSEngine:
 
     def get_audio_path_for_text(self, text: str) -> Path:
         """Computes deterministic cache filename based on text, voice, and rate MD5."""
-        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{text}".encode("utf-8")).hexdigest()
+        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{self.pitch}:{text}".encode("utf-8")).hexdigest()
         # 1. Check permanent pre-compiled cache first
         perm_path = self.cache_dir / f"{text_hash}.mp3"
         if perm_path.is_file() and perm_path.stat().st_size > 0:
@@ -54,7 +56,7 @@ class TTSEngine:
         return self.temp_dir / f"{text_hash}.mp3"
 
     async def _generate_async(self, text: str, output_path: Path):
-        communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
+        communicate = edge_tts.Communicate(text, self.voice, rate=self.rate, pitch=self.pitch)
         # 45.0s timeout to allow long detailed meal and medication announcements
         await asyncio.wait_for(communicate.save(str(output_path)), timeout=45.0)
 
@@ -64,7 +66,7 @@ class TTSEngine:
         otherwise synthesizes online directly into permanent cache or RAM disk (/dev/shm).
         Strictly enforces polite, natural Thai female voice (th-TH-PremwadeeNeural or female gTTS).
         """
-        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{text}".encode("utf-8")).hexdigest()
+        text_hash = hashlib.md5(f"{self.voice}:{self.rate}:{self.pitch}:{text}".encode("utf-8")).hexdigest()
         perm_path = self.cache_dir / f"{text_hash}.mp3"
         if not force and perm_path.is_file() and perm_path.stat().st_size > 0:
             logger.debug(f"[TTS] Using cached audio for: '{text[:25]}...' ({perm_path})")
@@ -85,8 +87,9 @@ class TTSEngine:
             for attempt in range(3):
                 try:
                     current_rate = self.rate if attempt == 0 else "+0%"
-                    logger.info(f"[TTS] Generating female speech with Edge-TTS for: '{text[:30]}...' (Voice: {self.voice}, rate: {current_rate}, attempt {attempt+1})")
-                    communicate = edge_tts.Communicate(text, self.voice, rate=current_rate)
+                    current_pitch = self.pitch if attempt == 0 else "+12Hz"
+                    logger.info(f"[TTS] Generating female speech with Edge-TTS for: '{text[:30]}...' (Voice: {self.voice}, rate: {current_rate}, pitch: {current_pitch}, attempt {attempt+1})")
+                    communicate = edge_tts.Communicate(text, self.voice, rate=current_rate, pitch=current_pitch)
                     asyncio.run(asyncio.wait_for(communicate.save(str(output_path)), timeout=20.0))
                     if output_path.is_file() and output_path.stat().st_size > 0:
                         return output_path

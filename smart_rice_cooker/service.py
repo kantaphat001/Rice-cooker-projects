@@ -82,7 +82,7 @@ class CompanionService:
         self.tracker = AdherenceTracker(settings.RAM_STATE_FILE, settings.PERSISTENT_STATE_FILE)
 
         # 4. Audio Engine
-        self.tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.AUDIO_TEMP_DIR, settings.VOICE_NAME, settings.VOICE_RATE)
+        self.tts = TTSEngine(settings.AUDIO_CACHE_DIR, settings.AUDIO_TEMP_DIR, settings.VOICE_NAME, settings.VOICE_RATE, settings.VOICE_PITCH)
         self.player = AudioPlayer(settings.AUDIO_PLAYER_CMD)
         self.precompiler = TTSPrecompiler(self.tts, self.repo)
 

@@ -16,7 +16,7 @@ from smart_rice_cooker.voice.tts_precompiler import TTSPrecompiler
 def main():
     print(f"[*] Precompiling all phrases using FEMALE VOICE: {settings.VOICE_NAME} (rate={settings.VOICE_RATE})")
     repo = MedicationRepository(settings.CONFIG_FILE, settings.EXAMPLE_CONFIG_FILE)
-    tts = TTSEngine(cache_dir=settings.AUDIO_CACHE_DIR, voice=settings.VOICE_NAME, rate=settings.VOICE_RATE)
+    tts = TTSEngine(cache_dir=settings.AUDIO_CACHE_DIR, voice=settings.VOICE_NAME, rate=settings.VOICE_RATE, pitch=settings.VOICE_PITCH)
     pre = TTSPrecompiler(tts, repo)
     pre.precompile_all(force=True)
     print("[+] All phrases precompiled successfully in sweet female voice!")

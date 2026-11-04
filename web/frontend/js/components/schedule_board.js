@@ -96,17 +96,12 @@ export function renderScheduleBoard() {
 
           <!-- Quick Action Buttons: Caregiver Adherence Check & Add Med -->
           <div class="flex items-center gap-2 self-end sm:self-auto">
-            ${isAck ? `
-              <button data-reset-slot="${key}" class="btn-reset-adherence apple-button px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium flex items-center gap-1 border border-slate-200" title="รีเซ็ตสถานะเป็นยังไม่ทานยา">
+            ${totalMeds > 0 ? `
+              <button data-reset-slot="${key}" class="btn-reset-adherence apple-button px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-2xs" title="แตะเพื่อรีเซ็ตสถานะมื้อนี้ เพื่อทดสอบระบบแจ้งเตือนใหม่อีกรอบได้ทันที">
                 <span>🔄</span>
-                <span class="hidden sm:inline">รีเซ็ต</span>
+                <span>รีเซ็ต</span>
               </button>
-            ` : (totalMeds > 0 ? `
-              <button data-ack-slot="${key}" class="btn-ack-adherence apple-button px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1 transition active:scale-95 shadow-2xs" title="แตะเพื่อบันทึกว่ารับประทานยาแล้ว">
-                <span>✓</span>
-                <span>บันทึกว่าทานแล้ว</span>
-              </button>
-            ` : '')}
+            ` : ''}
 
             <!-- Add Med Action Button -->
             <button data-add-meal="${key}" class="btn-add-med-slot apple-button px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm flex items-center gap-1.5 shadow-xs">

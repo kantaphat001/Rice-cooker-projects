@@ -394,7 +394,7 @@ class MedPortalHandler(BaseHTTPRequestHandler):
                     from smart_rice_cooker.medicine.adherence_tracker import AdherenceTracker
                     tracker = AdherenceTracker()
                     tracker.reset_slot(member_id, slot_key)
-                    self._send_json({"success": True, "message": f"รีเซ็ตสถานะยา {slot_key} ของ {member_id} เรียบร้อยแล้ว", "adherence": tracker.get_all_records()})
+                    self._send_json({"success": True, "message": f"รีเซ็ตสถานะมื้อ {slot_key} เรียบร้อยแล้ว พร้อมทดสอบเตือนใหม่อีกรอบได้ทันที", "adherence": tracker.get_all_records()})
                 except Exception as e:
                     self._send_json({"success": False, "error": str(e)}, code=500)
             else:
