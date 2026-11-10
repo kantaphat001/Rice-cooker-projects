@@ -3,7 +3,18 @@ import sys
 from pathlib import Path
 import paramiko
 
-PI_HOST = "10.50.49.17"
+import os
+import sys
+from pathlib import Path
+import paramiko
+
+# Automatically read from config_ip.txt if present
+cfg_file = Path(__file__).resolve().parent.parent / "config_ip.txt"
+if cfg_file.exists():
+    PI_HOST = cfg_file.read_text(encoding="utf-8").strip() or "10.14.40.17"
+else:
+    PI_HOST = os.getenv("PI_HOST", "10.14.40.17")
+
 PI_USER = "pi"
 PI_PASS = "1234"
 REMOTE_BASE = "/home/pi"
@@ -19,11 +30,13 @@ def main():
     # 1. Sync code files
     files_to_sync = [
         "smart_rice_cooker/config/settings.py",
+        "smart_rice_cooker/notifications/telegram_notifier.py",
         "smart_rice_cooker/hardware/fan_controller.py",
         "smart_rice_cooker/voice/tts_engine.py",
         "smart_rice_cooker/service.py",
-        "web/frontend/js/components/schedule_board.js",
         "web/backend/server.py",
+        "web/frontend/js/components/demo_modal.js",
+        "web/frontend/js/components/schedule_board.js",
         "deploy/precompile_all_female.py",
     ]
 
