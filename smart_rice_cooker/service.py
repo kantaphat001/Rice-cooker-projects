@@ -346,6 +346,12 @@ class CompanionService:
         self.tracker.record_reminder(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
         self.tracker.record_acknowledgement(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
 
+        # Send Telegram alert asynchronously
+        try:
+            from .notifications.telegram_notifier import send_medication_alert
+            send_medication_alert(display_name, slot_label, before_meds, after_meds)
+        except Exception as e:
+            logger.warning(f"[Service] Telegram alert error: {e}")
 
         self._speak_and_finish(msg, has_meds=True)
 
@@ -549,9 +555,13 @@ class CompanionService:
                 logger.debug(f"[Demo] Snapshot note: {e}")
 
             self.tracker.record_reminder(member_id, slot_key, spoken_message=msg, snapshot_file=snapshot_filename)
-            pass
             self.tracker.record_acknowledgement(member_id, slot_key, spoken_message="ยืนยันรับประทานยาผ่านปุ่มกด", snapshot_file=None)
 
+            try:
+                from .notifications.telegram_notifier import send_medication_alert
+                send_medication_alert(display_name, slot_label, before_meds, after_meds)
+            except Exception as e:
+                logger.warning(f"[Demo] Telegram error: {e}")
 
             self._speak_and_finish(msg, has_meds=True)
 

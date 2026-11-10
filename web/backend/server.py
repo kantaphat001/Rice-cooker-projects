@@ -354,7 +354,8 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             return
 
         if path == '/api/system/test_telegram':
-            self._send_json({'success': False, 'message': 'ระบบปิดการแจ้งเตือน Telegram แล้ว'})
+            send_telegram_test()
+            self._send_json({'success': True, 'message': 'ส่งข้อความทดสอบเข้ากลุ่ม Telegram สำเร็จแล้ว!'})
             return
 
         if path == '/api/demo/trigger':

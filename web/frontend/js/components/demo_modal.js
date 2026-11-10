@@ -4,7 +4,7 @@
  */
 
 import { store } from '../state.js';
-import { triggerDemoSimulation } from '../api.js';
+import { triggerDemoSimulation, testTelegram } from '../api.js';
 
 export function setupDemoModal() {
   const container = document.getElementById('modal-demo-container');
@@ -24,7 +24,7 @@ export function setupDemoModal() {
             </div>
             <div>
               <h3 class="text-lg font-bold text-slate-800">โหมดจำลองสถานการณ์สำหรับสาธิต</h3>
-              <p class="text-xs text-purple-600 font-medium">กดเพื่อสั่งการกล่องจริง (เสียงลำโพง + ไฟ LED + บันทึกสถานะทันที)</p>
+              <p class="text-xs text-purple-600 font-medium">กดเพื่อสั่งการกล่องจริง (เสียงลำโพง + ไฟ LED + ส่ง Telegram ทันที)</p>
             </div>
           </div>
           <button id="btn-close-demo-modal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
@@ -53,7 +53,7 @@ export function setupDemoModal() {
                 <span class="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">มาตรฐาน</span>
               </div>
               <p class="text-xs text-slate-500 leading-relaxed">
-                จำลองเดินมาหน้ากล่องตอนถึงเวลาทานยา: สแกนใบหน้า -> ลำโพงพูดเตือนยาประจำมื้อ -> บันทึกการทานยาสำเร็จ
+                จำลองเดินมาหน้ากล่องตอนถึงเวลาทานยา: สแกนใบหน้า -> ลำโพงพูดเตือนยาประจำมื้อ -> บันทึกทานแล้ว -> ส่งแจ้งเตือน Telegram
               </p>
             </div>
             <button data-scenario="normal_meal" class="btn-run-scenario apple-button px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 shadow-xs">
@@ -61,6 +61,22 @@ export function setupDemoModal() {
             </button>
           </div>
 
+          <!-- Telegram Direct Test Card -->
+          <div class="p-4 rounded-2xl bg-sky-50/70 hover:bg-sky-50 border border-sky-100 transition flex items-center justify-between gap-3">
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="text-base">✈️</span>
+                <span class="text-sm font-bold text-slate-800">ทดสอบแจ้งเตือน Telegram</span>
+                <span class="text-[10px] bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full">ทดสอบระบบ</span>
+              </div>
+              <p class="text-xs text-slate-500 leading-relaxed">
+                ส่งข้อความทดสอบเข้ากลุ่ม Telegram ทันที เพื่อตรวจความพร้อมระบบแจ้งเตือน
+              </p>
+            </div>
+            <button id="btn-demo-test-telegram" class="apple-button px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 shadow-xs">
+              🔔 ส่งทดสอบ
+            </button>
+          </div>
         </div>
 
         <div id="demo-status-banner" class="text-xs p-3 rounded-xl bg-purple-50 text-purple-800 font-medium hidden">
@@ -74,6 +90,7 @@ export function setupDemoModal() {
   const backdrop = document.getElementById('modal-demo-backdrop');
   const closeBtn = document.getElementById('btn-close-demo-modal');
   const statusBanner = document.getElementById('demo-status-banner');
+  const testTelegramBtn = document.getElementById('btn-demo-test-telegram');
 
   function closeModal() {
     modal.classList.add('hidden');
@@ -82,6 +99,17 @@ export function setupDemoModal() {
 
   backdrop.addEventListener('click', closeModal);
   closeBtn.addEventListener('click', closeModal);
+
+  if (testTelegramBtn) {
+    testTelegramBtn.addEventListener('click', async () => {
+      testTelegramBtn.disabled = true;
+      const originalText = testTelegramBtn.textContent;
+      testTelegramBtn.textContent = '⏳ กำลังส่ง...';
+      await testTelegram();
+      testTelegramBtn.disabled = false;
+      testTelegramBtn.textContent = originalText;
+    });
+  }
 
   // Bind Run Scenario Buttons
   container.querySelectorAll('.btn-run-scenario').forEach((btn) => {

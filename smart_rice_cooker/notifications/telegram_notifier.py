@@ -20,7 +20,7 @@ DEFAULT_CHAT_ID = "-1004315258257"
 
 
 class TelegramNotifier:
-    def __init__(self, bot_token: str = DEFAULT_BOT_TOKEN, chat_id: str = DEFAULT_CHAT_ID, enabled: bool = False):
+    def __init__(self, bot_token: str = DEFAULT_BOT_TOKEN, chat_id: str = DEFAULT_CHAT_ID, enabled: bool = True):
         self.bot_token = bot_token.strip()
         self.chat_id = chat_id.strip()
         self.enabled = enabled
