@@ -99,12 +99,14 @@ def get_pi_ip(timeout: float = 0.3) -> str:
     now = time.time()
     cfg_file = ROOT_DIR / "config_ip.txt"
 
-    # 2. Check config_ip.txt
+    # 2. Check config_ip.txt (supports multiple lines: active IP first, previous IPs as backups)
+    saved_candidates = []
     if cfg_file.exists():
         try:
-            saved_ip = cfg_file.read_text(encoding="utf-8").strip()
-            if saved_ip:
-                if is_port_open(saved_ip, 22, timeout=0.2) or is_port_open(saved_ip, 8080, timeout=0.2):
+            raw_text = cfg_file.read_text(encoding="utf-8")
+            saved_candidates = [line.strip() for line in raw_text.replace(",", "\n").splitlines() if line.strip() and not line.strip().startswith("#")]
+            for saved_ip in saved_candidates:
+                if is_port_open(saved_ip, 22, timeout=0.25) or is_port_open(saved_ip, 8080, timeout=0.25):
                     _CACHED_PI_IP = saved_ip
                     _CACHED_PI_TIME = now
                     return saved_ip
@@ -129,16 +131,30 @@ def get_pi_ip(timeout: float = 0.3) -> str:
     except Exception:
         pass
 
-    # 4. Known recent IP if reachable
-    known_ips = ['10.57.215.17', '192.168.137.102', '192.168.88.74']
+    # 4. Check ARP table for Raspberry Pi MAC addresses or active devices
+    try:
+        res = subprocess.run(['arp', '-a'], capture_output=True, text=True, timeout=1)
+        for line in res.stdout.splitlines():
+            line_clean = line.strip().lower()
+            if any(mac_prefix in line_clean for mac_prefix in ("d8-3a-dd", "d8:3a:dd", "b8-27-eb", "b8:27:eb", "dc-a6-32", "dc:a6:32", "e4-5f-01", "e4:5f:01", "28-cd-c1", "28:cd:c1")):
+                import re
+                m = re.search(r'(\d{1,3}(?:\.\d{1,3}){3})', line)
+                if m:
+                    cand_arp = m.group(1)
+                    if is_port_open(cand_arp, 22, timeout=0.25) or is_port_open(cand_arp, 8080, timeout=0.25):
+                        _CACHED_PI_IP = cand_arp
+                        _CACHED_PI_TIME = now
+                        return cand_arp
+    except Exception:
+        pass
+
+    # 5. Known recent IP list (all previous Hotspots & LAN subnets)
+    known_ips = ['10.68.140.13', '10.57.215.17', '192.168.137.102', '192.168.88.74', '172.20.3.37']
     for candidate in known_ips:
         if is_port_open(candidate, 22, timeout=0.2) or is_port_open(candidate, 8080, timeout=0.2):
             _CACHED_PI_IP = candidate
             _CACHED_PI_TIME = now
-            try:
-                cfg_file.write_text(candidate, encoding="utf-8")
-            except Exception:
-                pass
             return candidate
 
-    return _CACHED_PI_IP or '10.57.215.17'
+    first_saved = saved_candidates[0] if saved_candidates else '10.57.215.17'
+    return _CACHED_PI_IP or first_saved
