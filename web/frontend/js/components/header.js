@@ -23,7 +23,7 @@ export function renderHeader() {
           </div>
           <div class="shrink-0 flex items-center gap-2">
             <h1 class="text-sm sm:text-base lg:text-lg font-bold text-slate-800 whitespace-nowrap leading-tight">
-              เครื่องเตือนทานยา
+              กล่องเตือนทานยา
             </h1>
             <!-- Single Clean Device IP Badge -->
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-mono font-bold text-slate-700 border border-slate-200/80 shrink-0 shadow-2xs" title="ไอพีของเครื่องเตือนยา">
@@ -34,7 +34,7 @@ export function renderHeader() {
         </div>
 
         <!-- Right: Horizontally Scrollable Action Toolbar (แถบปุ่มเลื่อนได้อิสระ ไม่เบียด ไม่ทับกัน 100%) -->
-        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 min-w-0 max-w-full justify-end">
+        <div class="hidden md:flex items-center gap-2 overflow-x-auto no-scrollbar py-1 min-w-0 max-w-full justify-end">
           <!-- Demo Simulation Button (Purple) -->
           <button id="btn-open-demo" class="apple-button px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 text-xs sm:text-sm font-bold flex items-center gap-1.5 border border-purple-200/80 shadow-xs shrink-0 whitespace-nowrap" title="เปิดโหมดจำลองสถานการณ์สำหรับสาธิตให้กรรมการดู">
             <span>🎭</span>

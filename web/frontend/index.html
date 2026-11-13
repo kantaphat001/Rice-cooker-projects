@@ -1,86 +1,98 @@
-<!DOCTYPE html>
-<html lang="th" class="h-full">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Smart Med Reminder - เครื่องเตือนทานยา</title>
-  
-  <!-- Apple & PWA Meta Tags -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="เตือนยา">
-  <meta name="theme-color" content="#F8FAFC">
-  
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/svg+xml" href="/icon.svg">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-
-  <!-- Google Fonts: Sarabun (Clear Thai letters with circular heads) & Inter (Apple-style Numerals) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Tailwind CSS Engine -->
-  <script src="/js/tailwind.min.js"></script>
-
-  <!-- Apple Minimalist Design System -->
-  <link rel="stylesheet" href="/css/style.css">
-
-  <script>
-    /*__EMBEDDED_DATA__*/
-  </script>
-</head>
-<body class="min-h-full flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white pb-20 sm:pb-8">
-
-  <!-- App Header Target (macOS Frosted Toolbar) -->
-  <div id="app-header"></div>
-
-  <!-- In-App Browser Warning (e.g. LINE / Facebook in-app browser) -->
-  <div id="inapp-warning-banner" class="hidden bg-amber-500 text-white text-xs px-4 py-2.5 flex items-center justify-between gap-3 shadow-xs">
-    <div class="flex items-center gap-2">
-      <span class="text-base">⚠️</span>
-      <span>เปิดผ่านแอป LINE/Facebook แนะนำให้กดจุด 3 จุดแล้วเลือก <strong>"เปิดด้วยเบราว์เซอร์เริ่มต้น (Safari / Chrome)"</strong> เพื่อบันทึก Shortcut ลงหน้าจอโฮมได้</span>
-    </div>
-    <button onclick="document.getElementById('inapp-warning-banner').classList.add('hidden')" class="text-white hover:text-amber-100 font-bold px-2 py-0.5">✕</button>
-  </div>
-
-  <!-- Main Content Canvas -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-    <!-- Member Selector & Profile Hero Section -->
-    <section id="member-bar-container"></section>
-
-    <!-- Medication Schedule Board (4 Meals) -->
-    <section id="schedule-board-container" class="space-y-5"></section>
-  </main>
-
-  <!-- Mobile Primary Dock (Apple iOS Tab Bar for Phones, Foldables & Tablets) -->
-  <nav class="md:hidden fixed bottom-0 inset-x-0 glass-nav border-t border-slate-200/60 safe-area-bottom z-30 px-1 py-1 flex items-center justify-around text-[10px] font-semibold text-slate-600 shadow-lg">
-    <button id="nav-mobile-home" onclick="window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-emerald-700 active:scale-95 transition flex-1">
-      <span class="text-lg">💊</span>
-      <span>ตารางยา</span>
-    </button>
-    <button id="nav-mobile-demo" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-purple-700 active:scale-95 transition flex-1 font-bold">
-      <span class="text-lg">🎭</span>
-      <span>สาธิต</span>
-    </button>
-    <button id="nav-mobile-history" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-teal-700 active:scale-95 transition flex-1">
-      <span class="text-lg">📋</span>
-      <span>ประวัติ</span>
-    </button>
-<button id="nav-mobile-wifi" class="flex flex-col items-center gap-0.5 py-1 px-1.5 text-sky-700 active:scale-95 transition flex-1">
-      <span class="text-lg">📶</span>
-      <span>Wi-Fi</span>
-    </button>
-  </nav>
-
-  <!-- Modal Containers (Sheets) -->
-  <div id="modal-med-container"></div>
-  <div id="modal-face-container"></div>
-  <div id="modal-wifi-container"></div>
-  <div id="modal-aux-container"></div>
-  <div id="modal-demo-container"></div>
-  <div id="modal-history-container"></div>
-<!-- ES2026 Modular Application Script -->
-  <script type="module" src="/js/app.js?v=20261102_v2"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="th" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Smart Med Reminder - กล่องเตือนทานยา</title>
+  
+  <!-- Apple & PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="เตือนยา">
+  <meta name="theme-color" content="#F8FAFC">
+  
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!-- Google Fonts: Sarabun (Clear Thai letters with circular heads) & Inter (Apple-style Numerals) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS Engine -->
+  <script src="/js/tailwind.min.js"></script>
+
+  <!-- Apple Minimalist Design System -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <script>
+    /*__EMBEDDED_DATA__*/
+  </script>
+</head>
+<body class="min-h-full flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white pb-20 sm:pb-8">
+
+  <!-- App Header Target (macOS Frosted Toolbar) -->
+  <div id="app-header"></div>
+
+  <!-- In-App Browser Warning (e.g. LINE / Facebook in-app browser) -->
+  <div id="inapp-warning-banner" class="hidden bg-amber-500 text-white text-xs px-4 py-2.5 flex items-center justify-between gap-3 shadow-xs">
+    <div class="flex items-center gap-2">
+      <span class="text-base">⚠️</span>
+      <span>เปิดผ่านแอป LINE/Facebook แนะนำให้กดจุด 3 จุดแล้วเลือก <strong>"เปิดด้วยเบราว์เซอร์เริ่มต้น (Safari / Chrome)"</strong> เพื่อบันทึก Shortcut ลงหน้าจอโฮมได้</span>
+    </div>
+    <button onclick="document.getElementById('inapp-warning-banner').classList.add('hidden')" class="text-white hover:text-amber-100 font-bold px-2 py-0.5">✕</button>
+  </div>
+
+  <!-- Main Content Canvas -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- Member Selector & Profile Hero Section -->
+    <section id="member-bar-container"></section>
+
+    <!-- Medication Schedule Board (4 Meals) -->
+    <section id="schedule-board-container" class="space-y-5"></section>
+  </main>
+
+  <!-- Mobile Primary Dock (Apple iOS Scrollable Tab Bar for Phones, Foldables & Tablets) -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 glass-nav border-t border-slate-200/60 safe-area-bottom z-30 px-2 py-1 flex items-center gap-1 overflow-x-auto no-scrollbar text-[10px] font-semibold text-slate-600 shadow-lg backdrop-blur-md">
+    <button id="nav-mobile-home" onclick="window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[56px] text-emerald-700 active:scale-95 transition shrink-0">
+      <span class="text-lg">💊</span>
+      <span class="whitespace-nowrap">ตารางยา</span>
+    </button>
+    <button id="nav-mobile-demo" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[56px] text-purple-700 active:scale-95 transition shrink-0 font-bold">
+      <span class="text-lg">🎭</span>
+      <span class="whitespace-nowrap">โหมดสาธิต</span>
+    </button>
+    <button id="nav-mobile-history" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[56px] text-teal-700 active:scale-95 transition shrink-0">
+      <span class="text-lg">📋</span>
+      <span class="whitespace-nowrap">ประวัติ</span>
+    </button>
+    <button id="nav-mobile-wifi" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[56px] text-sky-700 active:scale-95 transition shrink-0">
+      <span class="text-lg">📶</span>
+      <span class="whitespace-nowrap">Wi-Fi</span>
+    </button>
+    <button id="nav-mobile-shortcut" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[66px] text-emerald-600 active:scale-95 transition shrink-0 font-bold">
+      <span class="text-lg">📲</span>
+      <span class="whitespace-nowrap">บันทึกมือถือ</span>
+    </button>
+    <button id="nav-mobile-qr" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[60px] text-slate-700 active:scale-95 transition shrink-0">
+      <span class="text-lg">📱</span>
+      <span class="whitespace-nowrap">สแกนมือถือ</span>
+    </button>
+    <button id="nav-mobile-shutdown" class="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 min-w-[56px] text-rose-600 active:scale-95 transition shrink-0">
+      <span class="text-lg">🔌</span>
+      <span class="whitespace-nowrap">ปิดเครื่อง</span>
+    </button>
+  </nav>
+
+  <!-- Modal Containers (Sheets) -->
+  <div id="modal-med-container"></div>
+  <div id="modal-face-container"></div>
+  <div id="modal-wifi-container"></div>
+  <div id="modal-aux-container"></div>
+  <div id="modal-demo-container"></div>
+  <div id="modal-history-container"></div>
+<!-- ES2026 Modular Application Script -->
+  <script type="module" src="/js/app.js?v=20261113_v1"></script>
+</body>
+</html>
