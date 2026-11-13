@@ -3,93 +3,75 @@ import sys
 from pathlib import Path
 import paramiko
 
-import os
-import sys
-from pathlib import Path
-import paramiko
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-# Automatically read from config_ip.txt if present
-cfg_file = Path(__file__).resolve().parent.parent / "config_ip.txt"
-if cfg_file.exists():
-    PI_HOST = cfg_file.read_text(encoding="utf-8").strip() or "10.14.40.17"
-else:
-    PI_HOST = os.getenv("PI_HOST", "10.14.40.17")
+from web.backend.network_utils import get_pi_ip
 
 PI_USER = "pi"
 PI_PASS = "1234"
 REMOTE_BASE = "/home/pi"
 
 def main():
-    print(f"Connecting to {PI_HOST}...")
+    pi_host = get_pi_ip()
+    print(f"Connecting to Raspberry Pi at {pi_host}...")
+
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(PI_HOST, username=PI_USER, password=PI_PASS, timeout=10)
-    sftp = ssh.open_sftp()
-    print("Connected via SFTP.")
-
-    # 1. Sync code files
-    files_to_sync = [
-        "smart_rice_cooker/config/settings.py",
-        "smart_rice_cooker/notifications/telegram_notifier.py",
-        "smart_rice_cooker/hardware/fan_controller.py",
-        "smart_rice_cooker/voice/tts_engine.py",
-        "smart_rice_cooker/service.py",
-        "web/backend/server.py",
-        "web/frontend/js/components/demo_modal.js",
-        "web/frontend/js/components/schedule_board.js",
-        "deploy/precompile_all_female.py",
-    ]
-
-    for rel_path in files_to_sync:
-        local_file = Path(rel_path)
-        remote_file = f"{REMOTE_BASE}/{rel_path.replace(os.sep, '/')}"
-        print(f"Uploading {local_file} -> {remote_file}")
-        sftp.put(str(local_file), remote_file)
-
-    # 2. Sync audio_cache files
-    local_cache = Path("audio_cache")
-    remote_cache = f"{REMOTE_BASE}/audio_cache"
     try:
-        sftp.mkdir(remote_cache)
-    except Exception:
-        pass
+        ssh.connect(pi_host, username=PI_USER, password=PI_PASS, timeout=8)
+    except Exception as e:
+        print(f"[!] Could not connect to {pi_host}: {e}")
+        return
 
-    # List existing files on Pi
-    remote_files = set(sftp.listdir(remote_cache))
-    mp3_files = list(local_cache.glob("*.mp3"))
-    print(f"Syncing {len(mp3_files)} audio files to {remote_cache}...")
+    sftp = ssh.open_sftp()
+    print("[+] Connected via SSH & SFTP.")
 
-    uploaded = 0
-    for mp3 in mp3_files:
-        if mp3.stat().st_size == 0:
+    # 1. Sync whole project folders
+    folders_to_sync = ["smart_rice_cooker", "web", "deploy", "tools"]
+    ignore_dirs = {"__pycache__", ".git", "dataset", "audio_cache", "snapshots", ".system_generated"}
+
+    for folder in folders_to_sync:
+        local_dir = ROOT_DIR / folder
+        if not local_dir.is_dir():
             continue
-        # If not on remote or size differs, upload
-        needs_upload = False
-        if mp3.name not in remote_files:
-            needs_upload = True
-        else:
+        for root, dirs, files in os.walk(local_dir):
+            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            rel_dir = Path(root).relative_to(ROOT_DIR).as_posix()
+            remote_dir = f"{REMOTE_BASE}/{rel_dir}"
             try:
-                r_stat = sftp.stat(f"{remote_cache}/{mp3.name}")
-                if r_stat.st_size != mp3.stat().st_size:
-                    needs_upload = True
-            except Exception:
-                needs_upload = True
+                sftp.stat(remote_dir)
+            except IOError:
+                ssh.exec_command(f"mkdir -p {remote_dir}")
 
-        if needs_upload:
-            sftp.put(str(mp3), f"{remote_cache}/{mp3.name}")
-            uploaded += 1
-            if uploaded % 10 == 0:
-                print(f"Uploaded {uploaded} files...")
+            for f in files:
+                if f.endswith((".py", ".js", ".html", ".css", ".json", ".svg", ".png", ".jpg", ".sh", ".service")):
+                    local_f = Path(root) / f
+                    remote_f = f"{remote_dir}/{f}"
+                    try:
+                        r_stat = sftp.stat(remote_f)
+                        if r_stat.st_mtime >= local_f.stat().st_mtime and r_stat.st_size == local_f.stat().st_size:
+                            continue
+                    except IOError:
+                        pass
+                    print(f"Uploading {rel_dir}/{f} -> {remote_f}")
+                    sftp.put(str(local_f), remote_f)
 
-    print(f"Audio cache sync complete. Uploaded {uploaded} updated files.")
+    # 2. Sync root script files
+    root_files = ["web_manager.py", "run_companion_box.py", "config_ip.txt"]
+    for rf in root_files:
+        rf_path = ROOT_DIR / rf
+        if rf_path.exists():
+            remote_f = f"{REMOTE_BASE}/{rf}"
+            print(f"Uploading {rf} -> {remote_f}")
+            sftp.put(str(rf_path), remote_f)
 
-    # 3. Restart systemd services
-    print("Restarting system services on Pi...")
-    stdin, stdout, stderr = ssh.exec_command("sudo systemctl restart smart-cooker.service smart-cooker-web.service")
-    out = stdout.read().decode()
-    err = stderr.read().decode()
-    if err:
-        print("Service restart note:", err)
+    # 3. Restart systemd services safely with sudo password
+    print("\n[*] Restarting system services on Pi...")
+    restart_cmd = f"echo {PI_PASS} | sudo -S systemctl restart smart-cooker.service smart-cooker-web.service"
+    stdin, stdout, stderr = ssh.exec_command(restart_cmd)
+    stdout.channel.recv_exit_status()
 
     # Check status
     stdin, stdout, stderr = ssh.exec_command("systemctl is-active smart-cooker.service smart-cooker-web.service")
@@ -98,7 +80,7 @@ def main():
 
     sftp.close()
     ssh.close()
-    print("[+] Deployment to Pi finished successfully!")
+    print("\n[+] Full sync to Raspberry Pi completed successfully!")
 
 if __name__ == "__main__":
     main()

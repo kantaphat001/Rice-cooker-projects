@@ -58,17 +58,19 @@ def main():
             if f.endswith(".py"):
                 sftp.put(os.path.join(root, f), f"{remote_dir}/{f}")
 
-    # Sync web directory
-    for root, dirs, files in os.walk(os.path.join(local_root, "web")):
-        dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git")]
-        rel_dir = os.path.relpath(root, local_root).replace("\\", "/")
-        remote_dir = f"/home/{PI_USER}/{rel_dir}"
-        try:
-            sftp.stat(remote_dir)
-        except IOError:
-            ssh.exec_command(f"mkdir -p {remote_dir}")
-        for f in files:
-            sftp.put(os.path.join(root, f), f"{remote_dir}/{f}")
+    # Sync web and deploy directories
+    for folder in ("web", "deploy"):
+        for root, dirs, files in os.walk(os.path.join(local_root, folder)):
+            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git")]
+            rel_dir = os.path.relpath(root, local_root).replace("\\", "/")
+            remote_dir = f"/home/{PI_USER}/{rel_dir}"
+            try:
+                sftp.stat(remote_dir)
+            except IOError:
+                ssh.exec_command(f"mkdir -p {remote_dir}")
+            for f in files:
+                if f.endswith((".py", ".js", ".html", ".css", ".json", ".svg", ".png", ".jpg", ".service")):
+                    sftp.put(os.path.join(root, f), f"{remote_dir}/{f}")
 
     # Sync root scripts
     for root_f in ("web_manager.py", "run_companion_box.py"):

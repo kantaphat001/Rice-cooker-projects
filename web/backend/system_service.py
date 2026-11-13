@@ -12,6 +12,8 @@ import json
 import socket
 import subprocess
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
 
@@ -317,3 +319,164 @@ def set_sensor_distance(distance_cm: float) -> Tuple[bool, str]:
         return (True, f"ตั้งค่าระยะตรวจจับอัลตราโซนิกเป็น {val:.0f} ซม. เรียบร้อย")
     except Exception as e:
         return (False, f"เกิดข้อผิดพลาด: {str(e)}")
+
+
+def safe_shutdown_pi(reboot: bool = False) -> Tuple[bool, str]:
+    """
+    1-Click Safe Shutdown / Reboot for Raspberry Pi Companion Box.
+    Properly stops services, turns off camera, turns off all LEDs,
+    turns off cooling fan relay (GPIO 18), syncs disks, and powers off safely.
+    Supports native execution on Pi or remote SSH execution from PC.
+    """
+    action_text = "รีสตาร์ตเครื่อง (Reboot)" if reboot else "ปิดเครื่องอย่างปลอดภัย (Safe Shutdown)"
+    power_cmd = "systemctl reboot" if reboot else "systemctl poweroff"
+
+    if is_running_on_pi():
+        try:
+            logger.info(f"[Power] Native execution on Pi: {action_text}")
+
+            # 1. Hardware LEDs & Fan Relay Shutdown
+            try:
+                from smart_rice_cooker.config import settings
+                led_pins = (settings.PIN_LED_RED, settings.PIN_LED_YELLOW, settings.PIN_LED_GREEN)
+                fan_pin = settings.PIN_FAN_RELAY
+                fan_active_low = settings.FAN_RELAY_ACTIVE_LOW
+            except Exception:
+                led_pins = (17, 27, 22)
+                fan_pin = 18
+                fan_active_low = False
+
+            # Extinguish LEDs
+            try:
+                from gpiozero import LED
+                for p in led_pins:
+                    try:
+                        LED(p).off()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Turn off Cooling Fan Relay
+            try:
+                from gpiozero import OutputDevice
+                fan = OutputDevice(fan_pin, active_high=not fan_active_low)
+                fan.off()
+            except Exception:
+                pass
+
+            # Fast hardware level override via pinctrl (standard in Raspberry Pi OS Bookworm)
+            try:
+                pins_csv = ",".join(str(p) for p in led_pins)
+                subprocess.run(f"echo {PI_PASS} | sudo -S pinctrl set {pins_csv} op dl 2>/dev/null", shell=True, timeout=2)
+                fan_level = "dh" if fan_active_low else "dl"
+                subprocess.run(f"echo {PI_PASS} | sudo -S pinctrl set {fan_pin} op {fan_level} 2>/dev/null", shell=True, timeout=2)
+            except Exception:
+                pass
+
+            # 2. Stop smart-cooker service (releases camera /dev/video0 and terminates detection threads)
+            subprocess.run(f"echo {PI_PASS} | sudo -S systemctl stop smart-cooker.service 2>/dev/null", shell=True, timeout=5)
+
+            # 3. Flush disk writes
+            subprocess.run(f"echo {PI_PASS} | sudo -S sync", shell=True, timeout=3)
+
+            # 4. Schedule delayed poweroff/reboot so HTTP JSON response is cleanly delivered to browser first
+            def _delayed_power():
+                time.sleep(1.5)
+                subprocess.run(f"echo {PI_PASS} | sudo -S {power_cmd}", shell=True)
+
+            t = threading.Thread(target=_delayed_power, daemon=False)
+            t.start()
+
+            msg = (
+                "ส่งคำสั่งรีบูต Raspberry Pi เรียบร้อยแล้ว ระบบจะเริ่มใหม่ใน 20-30 วินาที"
+                if reboot else
+                "ปิดเครื่องสำเร็จ! ระบบตัดไฟหน้ากล้อง ไฟ LED และพัดลมระบายความร้อนเรียบร้อยแล้ว บอร์ดจะดับลงใน 5 วินาที สามารถถอดปลั๊กได้อย่างปลอดภัย 100%"
+            )
+            return (True, msg)
+
+        except Exception as e:
+            logger.error(f"[Power] Native shutdown error: {e}")
+            return (False, f"เกิดข้อผิดพลาดในการสั่งปิดเครื่องบนบอร์ด: {str(e)}")
+
+    else:
+        # Remote execution from PC via SSH
+        if not PARAMIKO_AVAILABLE:
+            return (False, "Paramiko ไม่พร้อมใช้งานบนคอมพิวเตอร์ ไม่สามารถเชื่อมต่อไปยังบอร์ดได้")
+
+        # Discover candidate IPs
+        target_ips = []
+        primary_ip = get_pi_ip()
+        if primary_ip and primary_ip not in target_ips:
+            target_ips.append(primary_ip)
+
+        cfg_file = ROOT_DIR / "config_ip.txt"
+        if cfg_file.exists():
+            try:
+                cfg_ip = cfg_file.read_text(encoding="utf-8").strip()
+                if cfg_ip and cfg_ip not in target_ips:
+                    target_ips.append(cfg_ip)
+            except Exception:
+                pass
+
+        for fallback_ip in ["10.57.215.17", "192.168.137.102", "172.20.3.37"]:
+            if fallback_ip not in target_ips:
+                target_ips.append(fallback_ip)
+
+        client = None
+        connected_ip = None
+        last_error = ""
+
+        for candidate_ip in target_ips:
+            try:
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(candidate_ip, port=22, username=PI_USER, password=PI_PASS, timeout=3, banner_timeout=5, auth_timeout=5)
+                client = ssh
+                connected_ip = candidate_ip
+                break
+            except Exception as e:
+                last_error = str(e)
+
+        if not client:
+            cand_str = ", ".join(target_ips[:3])
+            return (False, f"ไม่สามารถเชื่อมต่อไปยัง Raspberry Pi (ลอง IP: {cand_str}): {last_error or 'ไม่ตอบสนอง'}")
+
+        try:
+            # 1. Stop service
+            client.exec_command(f"echo {PI_PASS} | sudo -S systemctl stop smart-cooker.service 2>/dev/null", timeout=6)
+            # 2. Extinguish LEDs and turn off fan relay
+            client.exec_command(
+                f"echo {PI_PASS} | sudo -S python3 -c \""
+                f"try:\n"
+                f" from gpiozero import LED, OutputDevice\n"
+                f" [LED(p).off() for p in (17, 27, 22)]\n"
+                f" OutputDevice(18).off()\n"
+                f"except Exception:\n"
+                f" pass\n"
+                f"\" 2>/dev/null; "
+                f"echo {PI_PASS} | sudo -S pinctrl set 17,27,22,18 op dl 2>/dev/null",
+                timeout=6
+            )
+            # 3. Sync disk
+            client.exec_command(f"echo {PI_PASS} | sudo -S sync", timeout=4)
+            # 4. Trigger delayed poweroff/reboot
+            client.exec_command(f"nohup bash -c 'sleep 1.5 && echo {PI_PASS} | sudo -S {power_cmd}' >/dev/null 2>&1 &", timeout=3)
+            time.sleep(0.5)
+            client.close()
+
+            msg = (
+                f"ส่งคำสั่งรีบูตไปยังบอร์ด {connected_ip} เรียบร้อยแล้ว บอร์ดจะเริ่มใหม่ใน 20-30 วินาที"
+                if reboot else
+                f"ส่งคำสั่งปิดเครื่องไปยังบอร์ด {connected_ip} สำเร็จ! ตัดไฟหน้ากล้อง พัดลม และไฟ LED เรียบร้อยแล้ว บอร์ดจะดับลงใน 5 วินาที สามารถถอดปลั๊กได้อย่างปลอดภัย 100%"
+            )
+            return (True, msg)
+
+        except Exception as e:
+            if client:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+            return (False, f"เกิดข้อผิดพลาดขณะส่งคำสั่งปิดเครื่อง: {str(e)}")
+

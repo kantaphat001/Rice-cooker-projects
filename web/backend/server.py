@@ -207,17 +207,15 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             return
 
         if path == '/api/pi/shutdown':
-            import threading
-            from deploy.shutdown_pi import shutdown_pi
-            threading.Thread(target=shutdown_pi, kwargs={"reboot": False}, daemon=True).start()
-            self._send_json({"success": True, "message": "ส่งคำสั่งปิดเครื่อง Raspberry Pi เรียบร้อยแล้ว ไฟจะดับลงใน 5-10 วินาที"})
+            from web.backend.system_service import safe_shutdown_pi
+            ok, msg = safe_shutdown_pi(reboot=False)
+            self._send_json({"success": ok, "message": msg}, code=200 if ok else 500)
             return
 
         if path == '/api/pi/reboot':
-            import threading
-            from deploy.shutdown_pi import shutdown_pi
-            threading.Thread(target=shutdown_pi, kwargs={"reboot": True}, daemon=True).start()
-            self._send_json({"success": True, "message": "ส่งคำสั่งรีบูต Raspberry Pi เรียบร้อยแล้ว บอร์ดจะเริ่มใหม่ใน 20-30 วินาที"})
+            from web.backend.system_service import safe_shutdown_pi
+            ok, msg = safe_shutdown_pi(reboot=True)
+            self._send_json({"success": ok, "message": msg}, code=200 if ok else 500)
             return
 
         # 3. PWA Assets
@@ -316,6 +314,18 @@ class MedPortalHandler(BaseHTTPRequestHandler):
             req_data = json.loads(body.decode('utf-8'))
         except Exception:
             req_data = {}
+
+        if path == '/api/pi/shutdown':
+            from web.backend.system_service import safe_shutdown_pi
+            ok, msg = safe_shutdown_pi(reboot=False)
+            self._send_json({"success": ok, "message": msg}, code=200 if ok else 500)
+            return
+
+        if path == '/api/pi/reboot':
+            from web.backend.system_service import safe_shutdown_pi
+            ok, msg = safe_shutdown_pi(reboot=True)
+            self._send_json({"success": ok, "message": msg}, code=200 if ok else 500)
+            return
 
         if path in ('/api/save', '/api/config'):
             ok = save_config(req_data)
